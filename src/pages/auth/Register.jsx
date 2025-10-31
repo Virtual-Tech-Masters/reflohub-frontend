@@ -39,21 +39,6 @@ const Register = () => {
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [passwordMatchError, setPasswordMatchError] = useState('');
   
-  // Location state
-  const [countries, setCountries] = useState([]);
-  const [states, setStates] = useState([]);
-  const [cities, setCities] = useState([]);
-  const [loadingCountries, setLoadingCountries] = useState(true);
-  const [loadingStates, setLoadingStates] = useState(false);
-  const [loadingCities, setLoadingCities] = useState(false);
-  
-  // Debug: Log countries state changes
-  useEffect(() => {
-    console.log('🌍 Countries state changed:', countries);
-    console.log('🌍 Countries length:', countries.length);
-  }, [countries]);
-
-  
   const { register } = useAuth();
 
   // Freelancer form data
@@ -76,8 +61,11 @@ const Register = () => {
     studentIdProofUrl: '',
     location: {
       country: '',
+      countryId: null,
       state: '',
-      city: ''
+      stateId: null,
+      city: '',
+      cityId: null
     },
     referralCodeUsed: '',
     acceptTerms: false
@@ -96,112 +84,143 @@ const Register = () => {
     logoUrl: '',
     website: '',
     state: '',
+    stateId: null,
     country: '',
+    countryId: null,
     city: '',
+    cityId: null,
     categoryId: '',
     acceptTerms: false
   });
   
-  // --- PATCH START: BUSINESS LOCATION LOGIC ---
-  const [businessLocations, setBusinessLocations] = useState([]);
-  const [businessCountryOptions, setBusinessCountryOptions] = useState([]);
-  const [businessStateOptions, setBusinessStateOptions] = useState([]);
-  const [businessCityOptions, setBusinessCityOptions] = useState([]);
-  const [loadingBusinessLocations, setLoadingBusinessLocations] = useState(true);
-  
+  // Shared location state for both forms
+  const [countries, setCountries] = useState([]);
+  const [freelancerStates, setFreelancerStates] = useState([]);
+  const [freelancerCities, setFreelancerCities] = useState([]);
+  const [businessStates, setBusinessStates] = useState([]);
+  const [businessCities, setBusinessCities] = useState([]);
+  const [loadingCountries, setLoadingCountries] = useState(true);
+  const [loadingFreelancerStates, setLoadingFreelancerStates] = useState(false);
+  const [loadingFreelancerCities, setLoadingFreelancerCities] = useState(false);
+  const [loadingBusinessStates, setLoadingBusinessStates] = useState(false);
+  const [loadingBusinessCities, setLoadingBusinessCities] = useState(false);
+
+  // Fetch countries on component mount
   useEffect(() => {
-    const fetchBusinessLocations = async () => {
+    const fetchCountries = async () => {
       try {
-        setLoadingBusinessLocations(true);
-        const response = await commonAPI.getBusinessLocations();
-        const locations = response.data || [];
-        setBusinessLocations(locations);
-        // Countries: unique country names
-        const countries = [...new Set(locations.map(l => l.country))];
-        setBusinessCountryOptions(countries);
-      } catch {
-        setBusinessLocations([]);
-        setBusinessCountryOptions([]);
+        setLoadingCountries(true);
+        const response = await commonAPI.getCountries();
+        const countriesData = response.data || [];
+        setCountries(countriesData);
+      } catch (error) {
+        console.error('Error fetching countries:', error);
+        toast.error('Failed to load countries');
+        setCountries([]);
       } finally {
-        setLoadingBusinessLocations(false);
+        setLoadingCountries(false);
       }
     };
-    fetchBusinessLocations();
+    fetchCountries();
   }, []);
 
-  // Update state/city options on country/state select (for business)
+  // Fetch states when freelancer country is selected
   useEffect(() => {
-    if (!businessData.country) {
-      setBusinessStateOptions([]);
-      setBusinessCityOptions([]);
+    if (!freelancerData.location.countryId) {
+      setFreelancerStates([]);
+      setFreelancerCities([]);
       return;
     }
-    const states = [...new Set(businessLocations.filter(l => l.country === businessData.country).map(l => l.state))];
-    setBusinessStateOptions(states);
-    setBusinessCityOptions([]);
-  }, [businessData.country, businessLocations]);
-
-  useEffect(() => {
-    if (!businessData.country || !businessData.state) {
-      setBusinessCityOptions([]);
-      return;
-    }
-    const cities = [...new Set(
-      businessLocations.filter(l => l.country === businessData.country && l.state === businessData.state).map(l => l.city)
-    )];
-    setBusinessCityOptions(cities);
-  }, [businessData.country, businessData.state, businessLocations]);
-  // --- PATCH END ---
-
-  // --- PATCH START: FREELANCER LOCATION LOGIC ---
-  const [freelancerLocations, setFreelancerLocations] = useState([]);
-  const [freelancerCountryOptions, setFreelancerCountryOptions] = useState([]);
-  const [freelancerStateOptions, setFreelancerStateOptions] = useState([]);
-  const [freelancerCityOptions, setFreelancerCityOptions] = useState([]);
-  const [loadingFreelancerLocations, setLoadingFreelancerLocations] = useState(true);
-  
-  useEffect(() => {
-    const fetchFreelancerLocations = async () => {
+    
+    const fetchStates = async () => {
       try {
-        setLoadingFreelancerLocations(true);
-        const response = await commonAPI.getFreelancerLocations();
-        const locations = response.data || [];
-        setFreelancerLocations(locations);
-        // Countries: unique country names
-        const countries = [...new Set(locations.map(l => l.country))];
-        setFreelancerCountryOptions(countries);
-      } catch {
-        setFreelancerLocations([]);
-        setFreelancerCountryOptions([]);
+        setLoadingFreelancerStates(true);
+        const response = await commonAPI.getStates(freelancerData.location.countryId);
+        setFreelancerStates(response.data || []);
+      } catch (error) {
+        console.error('Error fetching states:', error);
+        toast.error('Failed to load states');
+        setFreelancerStates([]);
       } finally {
-        setLoadingFreelancerLocations(false);
+        setLoadingFreelancerStates(false);
       }
     };
-    fetchFreelancerLocations();
-  }, []);
+    
+    fetchStates();
+  }, [freelancerData.location.countryId]);
 
+  // Fetch cities when freelancer state is selected
   useEffect(() => {
-    if (!freelancerData.location.country) {
-      setFreelancerStateOptions([]);
-      setFreelancerCityOptions([]);
+    if (!freelancerData.location.stateId) {
+      setFreelancerCities([]);
       return;
     }
-    const states = [...new Set(freelancerLocations.filter(l => l.country === freelancerData.location.country).map(l => l.state))];
-    setFreelancerStateOptions(states);
-    setFreelancerCityOptions([]);
-  }, [freelancerData.location.country, freelancerLocations]);
+    
+    const fetchCities = async () => {
+      try {
+        setLoadingFreelancerCities(true);
+        const response = await commonAPI.getCities(freelancerData.location.stateId);
+        setFreelancerCities(response.data || []);
+      } catch (error) {
+        console.error('Error fetching cities:', error);
+        toast.error('Failed to load cities');
+        setFreelancerCities([]);
+      } finally {
+        setLoadingFreelancerCities(false);
+      }
+    };
+    
+    fetchCities();
+  }, [freelancerData.location.stateId]);
 
+  // Fetch states when business country is selected
   useEffect(() => {
-    if (!freelancerData.location.country || !freelancerData.location.state) {
-      setFreelancerCityOptions([]);
+    if (!businessData.countryId) {
+      setBusinessStates([]);
+      setBusinessCities([]);
       return;
     }
-    const cities = [...new Set(
-      freelancerLocations.filter(l => l.country === freelancerData.location.country && l.state === freelancerData.location.state).map(l => l.city)
-    )];
-    setFreelancerCityOptions(cities);
-  }, [freelancerData.location.country, freelancerData.location.state, freelancerLocations]);
-  // --- PATCH END ---
+    
+    const fetchStates = async () => {
+      try {
+        setLoadingBusinessStates(true);
+        const response = await commonAPI.getStates(businessData.countryId);
+        setBusinessStates(response.data || []);
+      } catch (error) {
+        console.error('Error fetching states:', error);
+        toast.error('Failed to load states');
+        setBusinessStates([]);
+      } finally {
+        setLoadingBusinessStates(false);
+      }
+    };
+    
+    fetchStates();
+  }, [businessData.countryId]);
+
+  // Fetch cities when business state is selected
+  useEffect(() => {
+    if (!businessData.stateId) {
+      setBusinessCities([]);
+      return;
+    }
+    
+    const fetchCities = async () => {
+      try {
+        setLoadingBusinessCities(true);
+        const response = await commonAPI.getCities(businessData.stateId);
+        setBusinessCities(response.data || []);
+      } catch (error) {
+        console.error('Error fetching cities:', error);
+        toast.error('Failed to load cities');
+        setBusinessCities([]);
+      } finally {
+        setLoadingBusinessCities(false);
+      }
+    };
+    
+    fetchCities();
+  }, [businessData.stateId]);
 
   const genderOptions = [
     { value: 'MALE', label: 'Male' },
@@ -249,36 +268,7 @@ const Register = () => {
       }
     };
 
-    const fetchCountries = async () => {
-      try {
-        setLoadingCountries(true);
-        console.log('🌍 Fetching countries...');
-        const response = await commonAPI.getCountries();
-        console.log('🌍 Countries API response:', response);
-        console.log('🌍 Countries data:', response.data);
-        console.log('🌍 Countries length:', response.data?.length);
-        
-        if (response.data && response.data.length > 0) {
-          console.log('🌍 Setting countries:', response.data);
-          setCountries(response.data);
-        } else {
-          console.log('🌍 No countries data received');
-          setCountries([]);
-        }
-      } catch (error) {
-        console.error('🌍 Error fetching countries:', error);
-        console.error('🌍 Error response:', error.response);
-        console.error('🌍 Error message:', error.message);
-        toast.error('Failed to load countries');
-        setCountries([]);
-      } finally {
-        setLoadingCountries(false);
-        console.log('🌍 Loading countries finished');
-      }
-    };
-
     fetchCategories();
-    fetchCountries();
   }, []);
 
   const handleFreelancerInputChange = (e) => {
@@ -353,88 +343,90 @@ const Register = () => {
   };
 
   // Location handling functions
-  const handleCountryChange = async (countryId, countryName, isFreelancer = true) => {
-    try {
-      setLoadingStates(true);
-      setStates([]);
-      setCities([]);
-      
-      const response = await commonAPI.getStates(countryId);
-      setStates(response.data || []);
-      
-      if (isFreelancer) {
-        setFreelancerData(prev => ({
-          ...prev,
-          location: {
-            ...prev.location,
-            country: countryName,
-            state: '',
-            city: ''
-          }
-        }));
-      } else {
-        setBusinessData(prev => ({
-          ...prev,
-          country: countryName,
-          state: '',
-          city: ''
-        }));
+  const handleFreelancerCountryChange = (e) => {
+    const selectedCountryId = Number(e.target.value);
+    const selectedCountry = countries.find(c => c.id === selectedCountryId);
+    
+    setFreelancerData(prev => ({
+      ...prev,
+      location: {
+        country: selectedCountry?.name || '',
+        countryId: selectedCountryId || null,
+        state: '',
+        stateId: null,
+        city: '',
+        cityId: null
       }
-    } catch (error) {
-      console.error('Error fetching states:', error);
-      toast.error('Failed to load states');
-    } finally {
-      setLoadingStates(false);
-    }
+    }));
   };
 
-  const handleStateChange = async (stateId, stateName, isFreelancer = true) => {
-    try {
-      setLoadingCities(true);
-      setCities([]);
-      
-      const response = await commonAPI.getCities(stateId);
-      setCities(response.data || []);
-      
-      if (isFreelancer) {
-        setFreelancerData(prev => ({
-          ...prev,
-          location: {
-            ...prev.location,
-            state: stateName,
-            city: ''
-          }
-        }));
-      } else {
-        setBusinessData(prev => ({
-          ...prev,
-          state: stateName,
-          city: ''
-        }));
+  const handleFreelancerStateChange = (e) => {
+    const selectedStateId = Number(e.target.value);
+    const selectedState = freelancerStates.find(s => s.id === selectedStateId);
+    
+    setFreelancerData(prev => ({
+      ...prev,
+      location: {
+        ...prev.location,
+        state: selectedState?.name || '',
+        stateId: selectedStateId || null,
+        city: '',
+        cityId: null
       }
-    } catch (error) {
-      console.error('Error fetching cities:', error);
-      toast.error('Failed to load cities');
-    } finally {
-      setLoadingCities(false);
-    }
+    }));
   };
 
-  const handleCityChange = (cityName, isFreelancer = true) => {
-    if (isFreelancer) {
-      setFreelancerData(prev => ({
-        ...prev,
-        location: {
-          ...prev.location,
-          city: cityName
-        }
-      }));
-    } else {
-      setBusinessData(prev => ({
-        ...prev,
-        city: cityName
-      }));
-    }
+  const handleFreelancerCityChange = (e) => {
+    const selectedCityId = Number(e.target.value);
+    const selectedCity = freelancerCities.find(c => c.id === selectedCityId);
+    
+    setFreelancerData(prev => ({
+      ...prev,
+      location: {
+        ...prev.location,
+        city: selectedCity?.name || '',
+        cityId: selectedCityId || null
+      }
+    }));
+  };
+
+  const handleBusinessCountryChange = (e) => {
+    const selectedCountryId = Number(e.target.value);
+    const selectedCountry = countries.find(c => c.id === selectedCountryId);
+    
+    setBusinessData(prev => ({
+      ...prev,
+      country: selectedCountry?.name || '',
+      countryId: selectedCountryId || null,
+      state: '',
+      stateId: null,
+      city: '',
+      cityId: null
+    }));
+  };
+
+  const handleBusinessStateChange = (e) => {
+    const selectedStateId = Number(e.target.value);
+    const selectedState = businessStates.find(s => s.id === selectedStateId);
+    
+    setBusinessData(prev => ({
+      ...prev,
+      state: selectedState?.name || '',
+      stateId: selectedStateId || null,
+      city: '',
+      cityId: null
+    }));
+  };
+
+  const handleBusinessCityChange = (e) => {
+    const selectedCityId = Number(e.target.value);
+    const selectedCity = businessCities.find(c => c.id === selectedCityId);
+    
+    setBusinessData(prev => ({
+      ...prev,
+      city: selectedCity?.name || '',
+      cityId: selectedCityId || null
+    }));
   };
 
   const validateFreelancerForm = () => {
@@ -983,22 +975,17 @@ const Register = () => {
                             Country *
                           </label>
                           <select
-                            value={freelancerData.location.country}
-                            onChange={e => {
-                              setFreelancerData(prev => ({
-                                ...prev,
-                                location: { ...prev.location, country: e.target.value, state: '', city: '' },
-                              }));
-                            }}
-                            disabled={loadingFreelancerLocations}
+                            value={freelancerData.location.countryId || ''}
+                            onChange={handleFreelancerCountryChange}
+                            disabled={loadingCountries}
                             className="w-full pl-4 pr-4 py-2 bg-white/10 border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400/50 text-white transition-all duration-200 backdrop-blur-sm"
                             required
                           >
                             <option value="" className="bg-slate-800 text-white">
-                              {loadingFreelancerLocations ? 'Loading freelancer countries...' : 'Select Country'}
+                              {loadingCountries ? 'Loading countries...' : 'Select Country'}
                             </option>
-                            {freelancerCountryOptions.map(country => (
-                              <option key={country} value={country} className="bg-slate-800 text-white">{country}</option>
+                            {countries.map(country => (
+                              <option key={country.id} value={country.id} className="bg-slate-800 text-white">{country.name}</option>
                             ))}
                           </select>
                         </div>
@@ -1007,22 +994,17 @@ const Register = () => {
                             State *
                           </label>
                           <select
-                            value={freelancerData.location.state}
-                            onChange={e => {
-                              setFreelancerData(prev => ({
-                                ...prev,
-                                location: { ...prev.location, state: e.target.value, city: '' },
-                              }));
-                            }}
-                            disabled={!freelancerData.location.country || freelancerStateOptions.length === 0}
+                            value={freelancerData.location.stateId || ''}
+                            onChange={handleFreelancerStateChange}
+                            disabled={!freelancerData.location.countryId || loadingFreelancerStates || freelancerStates.length === 0}
                             className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400/50 text-white transition-all duration-200 backdrop-blur-sm"
                             required
                           >
                             <option value="" className="bg-slate-800 text-white">
-                              {!freelancerData.location.country ? 'Select country first' : freelancerStateOptions.length === 0 ? 'No states found' : 'Select State'}
+                              {!freelancerData.location.countryId ? 'Select country first' : loadingFreelancerStates ? 'Loading states...' : freelancerStates.length === 0 ? 'No states found' : 'Select State'}
                             </option>
-                            {freelancerStateOptions.map(state => (
-                              <option key={state} value={state} className="bg-slate-800 text-white">{state}</option>
+                            {freelancerStates.map(state => (
+                              <option key={state.id} value={state.id} className="bg-slate-800 text-white">{state.name}</option>
                             ))}
                           </select>
                         </div>
@@ -1031,22 +1013,17 @@ const Register = () => {
                             City *
                           </label>
                           <select
-                            value={freelancerData.location.city}
-                            onChange={e => {
-                              setFreelancerData(prev => ({
-                                ...prev,
-                                location: { ...prev.location, city: e.target.value },
-                              }));
-                            }}
-                            disabled={!freelancerData.location.state || freelancerCityOptions.length === 0}
+                            value={freelancerData.location.cityId || ''}
+                            onChange={handleFreelancerCityChange}
+                            disabled={!freelancerData.location.stateId || loadingFreelancerCities || freelancerCities.length === 0}
                             className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400/50 text-white transition-all duration-200 backdrop-blur-sm"
                             required
                           >
                             <option value="" className="bg-slate-800 text-white">
-                              {!freelancerData.location.state ? 'Select state first' : freelancerCityOptions.length === 0 ? 'No cities found' : 'Select City'}
+                              {!freelancerData.location.stateId ? 'Select state first' : loadingFreelancerCities ? 'Loading cities...' : freelancerCities.length === 0 ? 'No cities found' : 'Select City'}
                             </option>
-                            {freelancerCityOptions.map(city => (
-                              <option key={city} value={city} className="bg-slate-800 text-white">{city}</option>
+                            {freelancerCities.map(city => (
+                              <option key={city.id} value={city.id} className="bg-slate-800 text-white">{city.name}</option>
                             ))}
                           </select>
                         </div>
@@ -1342,19 +1319,17 @@ const Register = () => {
                           </label>
                           <select
                             name="country"
-                            value={businessData.country}
-                            onChange={e => {
-                              setBusinessData(prev => ({ ...prev, country: e.target.value, state: '', city: '' }));
-                            }}
-                            disabled={loadingBusinessLocations}
+                            value={businessData.countryId || ''}
+                            onChange={handleBusinessCountryChange}
+                            disabled={loadingCountries}
                             className="w-full pl-4 pr-4 py-2 bg-white/10 border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400/50 text-white transition-all duration-200 backdrop-blur-sm"
                             required
                           >
                             <option value="" className="bg-slate-800 text-white">
-                              {loadingBusinessLocations ? 'Loading business countries...' : 'Select Country'}
+                              {loadingCountries ? 'Loading countries...' : 'Select Country'}
                             </option>
-                            {businessCountryOptions.map(country => (
-                              <option key={country} value={country} className="bg-slate-800 text-white">{country}</option>
+                            {countries.map(country => (
+                              <option key={country.id} value={country.id} className="bg-slate-800 text-white">{country.name}</option>
                             ))}
                           </select>
                         </div>
@@ -1365,19 +1340,17 @@ const Register = () => {
                           </label>
                           <select
                             name="state"
-                            value={businessData.state}
-                            onChange={e => {
-                              setBusinessData(prev => ({ ...prev, state: e.target.value, city: '' }));
-                            }}
-                            disabled={!businessData.country || businessStateOptions.length === 0}
+                            value={businessData.stateId || ''}
+                            onChange={handleBusinessStateChange}
+                            disabled={!businessData.countryId || loadingBusinessStates || businessStates.length === 0}
                             className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400/50 text-white transition-all duration-200 backdrop-blur-sm"
                             required
                           >
                             <option value="" className="bg-slate-800 text-white">
-                              {!businessData.country ? 'Select country first' : businessStateOptions.length === 0 ? 'No states found' : 'Select State'}
+                              {!businessData.countryId ? 'Select country first' : loadingBusinessStates ? 'Loading states...' : businessStates.length === 0 ? 'No states found' : 'Select State'}
                             </option>
-                            {businessStateOptions.map(state => (
-                              <option key={state} value={state} className="bg-slate-800 text-white">{state}</option>
+                            {businessStates.map(state => (
+                              <option key={state.id} value={state.id} className="bg-slate-800 text-white">{state.name}</option>
                             ))}
                           </select>
                         </div>
@@ -1388,19 +1361,17 @@ const Register = () => {
                           </label>
                           <select
                             name="city"
-                            value={businessData.city}
-                            onChange={e => {
-                              setBusinessData(prev => ({ ...prev, city: e.target.value }));
-                            }}
-                            disabled={!businessData.state || businessCityOptions.length === 0}
+                            value={businessData.cityId || ''}
+                            onChange={handleBusinessCityChange}
+                            disabled={!businessData.stateId || loadingBusinessCities || businessCities.length === 0}
                             className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400/50 text-white transition-all duration-200 backdrop-blur-sm"
                             required
                           >
                             <option value="" className="bg-slate-800 text-white">
-                              {!businessData.state ? 'Select state first' : businessCityOptions.length === 0 ? 'No cities found' : 'Select City'}
+                              {!businessData.stateId ? 'Select state first' : loadingBusinessCities ? 'Loading cities...' : businessCities.length === 0 ? 'No cities found' : 'Select City'}
                             </option>
-                            {businessCityOptions.map(city => (
-                              <option key={city} value={city} className="bg-slate-800 text-white">{city}</option>
+                            {businessCities.map(city => (
+                              <option key={city.id} value={city.id} className="bg-slate-800 text-white">{city.name}</option>
                             ))}
                           </select>
                         </div>

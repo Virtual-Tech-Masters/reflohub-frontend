@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FiX, FiUser, FiPhone, FiMail, FiFileText, FiDollarSign } from 'react-icons/fi';
 import { freelancerAPI } from '../../utils/api';
 import toast from 'react-hot-toast';
+import { getErrorMessage } from '../../utils/helpers';
 
 const LeadSubmitModal = ({ open, onClose, onSubmit, businesses, selectedBusiness, creditBalance }) => {
   const [formData, setFormData] = useState({
@@ -46,8 +47,7 @@ const LeadSubmitModal = ({ open, onClose, onSubmit, businesses, selectedBusiness
       // For now, we'll use the passed businesses prop
       setBusinessesList(businesses || []);
     } catch (error) {
-      console.error('Failed to load businesses:', error);
-      toast.error('Failed to load businesses');
+      toast.error(getErrorMessage(error));
     }
   };
   
@@ -127,23 +127,13 @@ const LeadSubmitModal = ({ open, onClose, onSubmit, businesses, selectedBusiness
       toast.success('Lead submitted successfully!');
       onClose();
     } catch (error) {
-      console.error('Failed to submit lead:', error);
-      
       // Handle insufficient credits error (402)
       if (error.response?.status === 402) {
         toast.error('Insufficient credits! You need at least 1 credit to submit a lead.', {
-          duration: 6000,
-          action: {
-            label: 'Buy Credits',
-            onClick: () => {
-              // TODO: Open credit purchase modal
-              console.log('Open credit purchase modal');
-            }
-          }
+          duration: 6000
         });
       } else {
-        const message = error.response?.data?.message || 'Failed to submit lead';
-        toast.error(message);
+        toast.error(getErrorMessage(error));
       }
     } finally {
       setLoading(false);

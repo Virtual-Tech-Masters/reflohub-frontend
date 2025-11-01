@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { Helmet } from 'react-helmet-async';
 import PageTitle from '../../components/common/PageTitle';
 import { freelancerAPI, mediaAPI } from '../../utils/api';
+import { getErrorMessage, escapeHtml } from '../../utils/helpers';
 
 const FreelancerProfile = () => {
   const [profile, setProfile] = useState(null);
@@ -62,8 +63,7 @@ const FreelancerProfile = () => {
         isStudent: profileData.isStudent || false
       });
     } catch (error) {
-      console.error('Failed to load profile:', error);
-      toast.error('Failed to load profile');
+      toast.error(getErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -82,10 +82,10 @@ const FreelancerProfile = () => {
           return { type, data: null };
         } catch (error) {
           if (error.response?.status === 404 || error.response?.status === 400) {
-            console.log(`No existing ${type} found (this is normal for new users)`);
+            // No existing media found - this is normal for new users
             return { type, data: null };
           }
-          console.warn(`Error fetching ${type}:`, error.message);
+          // Non-critical error, return null
           return { type, data: null };
         }
       });
@@ -117,8 +117,7 @@ const FreelancerProfile = () => {
       setIsEditing(false);
       toast.success('Profile updated successfully!');
     } catch (error) {
-      console.error('Failed to update profile:', error);
-      toast.error('Failed to update profile');
+      toast.error(getErrorMessage(error));
     } finally {
       setSaving(false);
     }
@@ -153,8 +152,7 @@ const FreelancerProfile = () => {
         loadExistingMedia();
       }
     } catch (error) {
-      console.error('Error uploading file:', error);
-      toast.error('Failed to upload file. Please try again.');
+      toast.error(getErrorMessage(error));
     } finally {
       setUploading(prev => ({ ...prev, [mediaType]: false }));
     }
@@ -396,7 +394,7 @@ const FreelancerProfile = () => {
                       <div className="flex items-center gap-2">
                         <FiCamera className="w-4 h-4 text-blue-500" />
                         <span className="text-sm text-gray-900 dark:text-white">
-                          {existingMedia.profilePicture?.name || uploadedFiles.profilePicture?.name || 'Profile picture uploaded'}
+                          {escapeHtml(existingMedia.profilePicture?.name || uploadedFiles.profilePicture?.name || 'Profile picture uploaded')}
                         </span>
                         <span className="text-xs text-gray-500 dark:text-gray-400">
                           {existingMedia.profilePicture ? '(Existing)' : '(New)'}

@@ -1,356 +1,381 @@
-import { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { FiSend, FiUser, FiMessageSquare, FiSearch, FiMoreVertical, FiRefreshCw, FiWifi, FiWifiOff } from 'react-icons/fi';
-import { IoCheckmarkDone } from 'react-icons/io5';
-import toast from 'react-hot-toast';
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { FiMessageSquare, FiUser, FiSend, FiArrowLeft, FiWifi, FiWifiOff } from 'react-icons/fi';
 import { Helmet } from 'react-helmet-async';
+import toast from 'react-hot-toast';
+import { useBusinessChatList } from '../../hooks/useBusinessChatList';
+import { useFreelancerBusinessChat } from '../../hooks/useFreelancerBusinessChat';
 import PageTitle from '../../components/common/PageTitle';
-import { useJChat } from '../../hooks/useJChat';
-import { useAuth } from '../../context/AuthContext';
-import { getErrorMessage, escapeHtml, formatDateTime } from '../../utils/helpers';
+import { escapeHtml, formatDateTime } from '../../utils/helpers';
+import MentionInput from '../../components/chat/MentionInput';
+import LeadMention, { renderMessageWithMentions } from '../../components/chat/LeadMention';
+import TaggedLeads from '../../components/chat/TaggedLeads';
+import ActiveLead from '../../components/chat/ActiveLead';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
-const Chat = () => {
-  const { currentUser } = useAuth();
-  const { 
-    chats, 
-    loading, 
-    error, 
-    selectedChat, 
-    messages,
-    isConnected,
-    selectChat,
-    refreshChats, 
-    sendMessage, 
-    markAsRead
-  } = useJChat();
-
-  // Helper function to get chat display info
-  const getChatInfo = (chat) => {
-    const recipient = chat.recipient || {};
-    const name = escapeHtml(recipient.fullName || recipient.name || 'Unknown');
-    const avatar = recipient.profilePictureUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&color=fff`;
-    const lastMessage = chat.lastMessage?.message || 'No messages yet';
-    const time = chat.lastMessage?.createdAt 
-      ? formatDateTime(chat.lastMessage.createdAt)
-      : formatDateTime(chat.updatedAt);
-    return { name, avatar, lastMessage, time };
-  };
-  const [searchQuery, setSearchQuery] = useState('');
+const BusinessChat = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [selectedFreelancerId, setSelectedFreelancerId] = useState(null);
   const [messageInput, setMessageInput] = useState('');
-  const messagesEndRef = useRef(null);
+  const [messagesEndRef, setMessagesEndRef] = useState(null);
+  const [activeLead, setActiveLead] = useState(null); // Lead from URL or mentions
 
-  // Auto-scroll to bottom when messages change
+  const { freelancers, loading: listLoading, error: listError } = useBusinessChatList();
+
+  // Check URL params for freelancerId and leadId on mount and after freelancers load
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    const freelancerIdFromUrl = searchParams.get('freelancerId');
+    const leadIdFromUrl = searchParams.get('leadId');
+    const leadNameFromUrl = searchParams.get('leadName');
+    
+    if (freelancerIdFromUrl && !listLoading && freelancers.length > 0) {
+      const id = parseInt(freelancerIdFromUrl, 10);
+      if (!isNaN(id)) {
+        // Verify freelancer exists in the list
+        const freelancerExists = freelancers.some(f => f.id === id);
+        if (freelancerExists) {
+          setSelectedFreelancerId(id);
+          
+          // If leadId is provided, set active lead and pre-fill the message input with mention
+          if (leadIdFromUrl && leadNameFromUrl) {
+            const leadId = parseInt(leadIdFromUrl, 10);
+            if (!isNaN(leadId)) {
+              const leadName = decodeURIComponent(leadNameFromUrl);
+              // Set active lead for display at top
+              setActiveLead({ id: leadId, name: leadName });
+              // Pre-fill mention in message input
+              const mentionText = `@[${leadId}:${leadName}]`;
+              setMessageInput(mentionText + ' ');
+              // Focus the input after components are rendered
+              setTimeout(() => {
+                const input = document.querySelector('input[placeholder*="Type your message"]');
+                if (input) {
+                  input.focus();
+                  // Move cursor to end of text
+                  const length = mentionText.length + 1;
+                  input.setSelectionRange(length, length);
+                }
+              }, 200);
+            }
+          }
+        } else {
+          toast.error('Freelancer not found or you cannot chat with this freelancer');
+        }
+        // Clean up URL param
+        navigate('/business/chat', { replace: true });
+      }
     }
-  }, [messages]);
+  }, [searchParams, navigate, listLoading, freelancers]);
 
-  const filteredChats = chats.filter(chat => {
-    const info = getChatInfo(chat);
-    return info.name.toLowerCase().includes(searchQuery.toLowerCase());
-  });
+  const handleMentionClick = (leadId) => {
+    // Ensure leadId is properly converted - it might be string or number
+    if (!leadId) {
+      console.error('handleMentionClick: No leadId provided');
+      return;
+    }
+    const id = String(leadId).trim();
+    if (!id || id === 'undefined' || id === 'null') {
+      console.error('handleMentionClick: Invalid leadId', leadId);
+      toast.error('Invalid lead ID');
+      return;
+    }
+    navigate(`/business/leads/${id}`);
+  };
+
+  const { 
+    messages, 
+    loading: messagesLoading, 
+    error: messagesError, 
+    connected, 
+    sending, 
+    sendMessage 
+  } = useFreelancerBusinessChat(selectedFreelancerId, null, 'business');
+
+  const selectedFreelancer = freelancers.find(f => f.id === selectedFreelancerId);
+
+  // Scroll to bottom when new messages arrive
+  const scrollToBottom = () => {
+    messagesEndRef?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!messageInput.trim() || !selectedChat) {
-      toast.error('Please enter a message');
-      return;
+    if (!messageInput.trim() || sending) return;
+
+    // Extract mentioned lead from message if any
+    const mentionMatch = messageInput.match(/@\[(\d+):([^\]]+)\]/);
+    if (mentionMatch) {
+      const leadId = parseInt(mentionMatch[1], 10);
+      const leadName = mentionMatch[2];
+      if (!isNaN(leadId) && leadName) {
+        // Set as active lead if not already set
+        if (!activeLead || activeLead.id !== leadId) {
+          setActiveLead({ id: leadId, name: leadName });
+        }
+      }
     }
 
-    try {
-      await sendMessage(messageInput.trim(), selectedChat.id);
-      setMessageInput('');
-    } catch (error) {
-      const errorMessage = getErrorMessage(error);
-      toast.error(errorMessage);
-    }
+    await sendMessage(messageInput.trim());
+    setMessageInput('');
+    setTimeout(scrollToBottom, 100);
   };
 
-  const handleChatSelect = (chat) => {
-    selectChat(chat);
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    const errorMessage = getErrorMessage(error);
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="text-red-500 text-6xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Failed to load chats</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">{errorMessage}</p>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={refreshChats}
-            className="bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 hover:from-blue-600 hover:via-purple-600 hover:to-pink-600 text-white font-semibold py-3 px-6 rounded-2xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:ring-offset-2 flex items-center gap-2 mx-auto shadow-2xl hover:shadow-blue-500/25"
-          >
-            <FiRefreshCw /> Try Again
-          </motion.button>
-        </div>
-      </div>
-    );
-  }
+  // Auto-scroll on new messages
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   return (
     <>
       <Helmet>
-        <title>Business Chat - RefloHub</title>
-        <meta name="description" content="Communicate with freelancers and team members" />
+        <title>Chat - Business Portal</title>
+        <meta name="description" content="Chat with freelancers" />
       </Helmet>
+
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
         <div className="container mx-auto px-4 py-8">
           <PageTitle
-            title="Business Chat"
-            subtitle="Communicate with freelancers and team members"
-            actions={
-              <button
-                onClick={refreshChats}
-                className="btn-secondary flex items-center gap-2"
-              >
-                <FiRefreshCw /> Refresh
-              </button>
-            }
+            title="Chat"
+            subtitle="Communicate with freelancers who have submitted leads"
           />
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-2 gap-3 mb-4">
-            <div className="card">
-              <div className="flex items-center">
-                <div className="p-2 bg-primary-100 dark:bg-primary-900/20 rounded-lg">
-                  <FiMessageSquare className="text-primary-600" size={20} />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Chats</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">{chats.length}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="card">
-              <div className="flex items-center">
-                <div className="p-2 bg-red-100 dark:bg-red-900/20 rounded-lg">
-                  <FiUser className="text-red-600" size={20} />
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Unread</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">
-                    {chats.reduce((sum, chat) => sum + (chat.unreadCount || 0), 0)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex-1 flex bg-white dark:bg-gray-900 rounded-lg shadow-lg overflow-hidden min-h-[600px]">
-        {/* Chat List - Made smaller */}
-        <div className="w-1/4 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-          {/* Search */}
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="relative">
-              <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search chats..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-800 dark:text-white"
-              />
-            </div>
-          </div>
-
-          {/* Chat List */}
-          <div className="flex-1 overflow-y-auto">
-            {filteredChats.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-center p-4">
-                <FiMessageSquare className="text-6xl text-gray-400 mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                  {searchQuery ? 'No chats found' : 'No chats yet'}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-200px)]">
+            {/* Freelancer List */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden flex flex-col">
+              <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Freelancers ({freelancers.length})
                 </h3>
-                <p className="text-gray-600 dark:text-gray-400">
-                  {searchQuery 
-                    ? 'Try adjusting your search criteria.'
-                    : 'Start a conversation with freelancers or team members.'
-                  }
-                </p>
+            </div>
+
+              {listLoading ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : listError ? (
+                <div className="flex-1 flex items-center justify-center p-4">
+                  <p className="text-red-500 text-center">{listError}</p>
+                </div>
+              ) : freelancers.length === 0 ? (
+                <div className="flex-1 flex items-center justify-center p-4">
+                  <div className="text-center">
+                    <FiMessageSquare className="mx-auto text-gray-400 text-4xl mb-2" />
+                    <p className="text-gray-600 dark:text-gray-400">No freelancers to chat with</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+                      Freelancers will appear here after they submit leads
+                    </p>
               </div>
-            ) : (
-              <div className="space-y-1 p-1">
-                {filteredChats.map((chat) => (
-                  <motion.div
-                    key={chat.id}
-                    whileHover={{ backgroundColor: 'rgba(59, 130, 246, 0.05)' }}
-                    className={`p-2 rounded-lg cursor-pointer transition-colors ${
-                      selectedChat?.id === chat.id
-                        ? 'bg-primary-50 dark:bg-primary-900/20 border-l-4 border-primary-500'
-                        : 'hover:bg-gray-50 dark:hover:bg-gray-800'
-                    }`}
-                    onClick={() => handleChatSelect(chat)}
-                  >
-                    <div className="flex items-center">
-                      <div className="relative">
-                        {(() => {
-                          const info = getChatInfo(chat);
-                          return (
-                            <>
-                              <img
-                                src={info.avatar}
-                                alt={info.name}
-                                className="w-8 h-8 rounded-full object-cover"
-                              />
-                            </>
-                          );
-                        })()}
-                      </div>
-                      <div className="ml-2 flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <h4 className="text-xs font-medium text-gray-900 dark:text-white truncate">
-                            {getChatInfo(chat).name}
-                          </h4>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {getChatInfo(chat).time}
-                          </span>
+            </div>
+              ) : (
+          <div className="flex-1 overflow-y-auto">
+                  {freelancers.map((freelancer) => (
+                    <button
+                      key={freelancer.id}
+                      onClick={() => setSelectedFreelancerId(freelancer.id)}
+                      className={`w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors border-b border-gray-100 dark:border-gray-700 ${
+                        selectedFreelancerId === freelancer.id
+                          ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500'
+                          : ''
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
+                          <FiUser className="text-blue-600 dark:text-blue-400" />
                         </div>
-                        <p className="text-xs text-gray-600 dark:text-gray-400 truncate" title={getChatInfo(chat).lastMessage}>
-                          {escapeHtml(getChatInfo(chat).lastMessage)}
-                        </p>
-                      </div>
-                      {chat.unreadCount > 0 && (
-                        <div className="ml-2 bg-primary-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                          {chat.unreadCount}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 dark:text-white truncate">
+                            {escapeHtml(freelancer.fullName || 'Unknown')}
+                          </p>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                            {escapeHtml(freelancer.email || '')}
+                          </p>
                         </div>
-                      )}
                     </div>
-                  </motion.div>
+                    </button>
                 ))}
               </div>
             )}
-          </div>
         </div>
 
         {/* Chat Area */}
-        <div className="flex-1 flex flex-col">
-          {selectedChat ? (
+            <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow-lg overflow-hidden flex flex-col">
+              {!selectedFreelancerId ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center">
+                    <FiMessageSquare className="mx-auto text-gray-400 text-5xl mb-4" />
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                      Select a freelancer to start chatting
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-400">
+                      Choose a freelancer from the list to view your conversation
+                    </p>
+                  </div>
+                </div>
+              ) : (
             <>
               {/* Chat Header */}
               <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <div className="flex items-center">
-                  {(() => {
-                    const info = getChatInfo(selectedChat);
-                    return (
-                      <>
-                        <img
-                          src={info.avatar}
-                          alt={info.name}
-                          className="w-8 h-8 rounded-full object-cover mr-3"
-                        />
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center">
+                        <FiUser className="text-blue-600 dark:text-blue-400" />
+                      </div>
                         <div>
-                          <h3 className="font-medium text-gray-900 dark:text-white">
-                            {info.name}
+                        <h3 className="font-semibold text-gray-900 dark:text-white">
+                          {escapeHtml(selectedFreelancer?.fullName || 'Unknown')}
                           </h3>
-                          <div className="flex items-center">
-                            <div className="flex items-center">
-                              {isConnected ? (
-                                <div className="flex items-center gap-1">
-                                  <FiWifi className="text-green-500 text-sm" title="Connected" />
-                                  <span className="text-xs text-green-600">Live</span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1">
-                                  <FiWifiOff className="text-red-500 text-sm" title="Disconnected" />
-                                  <span className="text-xs text-red-600">Offline</span>
-                                </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          {connected ? (
+                            <>
+                              <FiWifi className="text-green-500" />
+                              <span className="text-green-600 dark:text-green-400">Connected</span>
+                            </>
+                          ) : (
+                            <>
+                              <FiWifiOff className="text-gray-400" />
+                              <span className="text-gray-500 dark:text-gray-400">Connecting...</span>
+                            </>
                               )}
                             </div>
                           </div>
                         </div>
-                      </>
-                    );
-                  })()}
-                </div>
-                <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                  <FiMoreVertical />
-                </button>
               </div>
+
+                  {/* Active Lead Section (from URL or mentions) */}
+                  {activeLead && (
+                    <ActiveLead
+                      lead={activeLead}
+                      onLeadClick={handleMentionClick}
+                      onDismiss={() => setActiveLead(null)}
+                    />
+                  )}
+
+                  {/* Tagged Leads Section (from messages) */}
+                  <TaggedLeads
+                    messages={messages}
+                    onLeadClick={(leadId) => {
+                      // leadId from TaggedLeads is already a string (from part.leadId)
+                      // Convert to number for consistency
+                      const id = typeof leadId === 'string' ? leadId : String(leadId);
+                      handleMentionClick(id);
+                      // Also set as active lead when clicked
+                      const mentionedLead = messages
+                        .flatMap(m => {
+                          const parts = renderMessageWithMentions(m.message);
+                          return parts.filter(p => p.type === 'mention' && String(p.leadId) === String(leadId));
+                        })[0];
+                      if (mentionedLead) {
+                        setActiveLead({ id: id, name: mentionedLead.leadName });
+                      }
+                    }}
+                  />
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {messages.map((message) => {
-                  const isSent = message.senderId === currentUser?.id;
-                  const time = message.createdAt ? formatDateTime(message.createdAt) : 'N/A';
-                  return (
-                    <motion.div
-                      key={message.id}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className={`flex ${isSent ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div
-                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                          isSent
-                            ? 'bg-primary-500 text-white'
-                            : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
-                        }`}
-                      >
-                        <p className="text-sm whitespace-pre-wrap">{escapeHtml(message.message)}</p>
-                        <div className="flex items-center justify-end mt-1">
-                          <span className="text-xs opacity-70">{time}</span>
-                          {isSent && (
-                            <IoCheckmarkDone
-                              className={`ml-1 text-xs ${
-                                message.read ? 'text-blue-300' : 'text-gray-300'
-                              }`}
-                            />
-                          )}
+                    {messagesLoading ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                      </div>
+                    ) : messagesError ? (
+                      <div className="flex items-center justify-center h-full">
+                        <p className="text-red-500">{messagesError}</p>
+                      </div>
+                    ) : messages.length === 0 ? (
+                      <div className="flex items-center justify-center h-full">
+                        <div className="text-center">
+                          <FiMessageSquare className="mx-auto text-gray-400 text-4xl mb-2" />
+                          <p className="text-gray-600 dark:text-gray-400">No messages yet</p>
+                          <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+                            Start the conversation!
+                          </p>
                         </div>
                       </div>
-                    </motion.div>
+                    ) : (
+                      messages.map((message) => {
+                        const isBusiness = message.senderType === 'BUSINESS';
+                        const isCurrentUser = isBusiness; // Business is always current user for business portal
+
+                  return (
+                          <div
+                      key={message.id}
+                            className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div
+                              className={`max-w-[70%] rounded-2xl p-3 ${
+                                isCurrentUser
+                                  ? 'bg-blue-500 text-white'
+                                  : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
+                              }`}
+                            >
+                              <p className="text-sm whitespace-pre-wrap break-words">
+                                {renderMessageWithMentions(message.message).map((part, idx) => {
+                                  if (part.type === 'mention') {
+                                    return (
+                                      <span
+                                        key={idx}
+                                        onClick={(e) => {
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                          if (part.leadId) {
+                                            handleMentionClick(String(part.leadId));
+                                          }
+                                        }}
+                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md cursor-pointer transition-colors mx-1 ${
+                                          isCurrentUser
+                                            ? 'bg-blue-400/30 text-blue-100 hover:bg-blue-400/50'
+                                            : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50'
+                                        }`}
+                                        title="Click to view lead details"
+                                      >
+                                        <FiFileText size={12} />
+                                        <span className="font-medium">{escapeHtml(part.leadName)}</span>
+                                      </span>
+                                    );
+                                  }
+                                  return <span key={idx}>{escapeHtml(part.content)}</span>;
+                                })}
+                              </p>
+                              <p
+                                className={`text-xs mt-1 ${
+                                  isCurrentUser
+                                    ? 'text-blue-100'
+                                    : 'text-gray-500 dark:text-gray-400'
+                                }`}
+                              >
+                                {formatDateTime(message.createdAt)}
+                              </p>
+                        </div>
+                      </div>
                   );
-                })}
-                <div ref={messagesEndRef} />
+                      })
+                    )}
+                    <div ref={(el) => setMessagesEndRef(el)} />
               </div>
 
               {/* Message Input */}
               <div className="p-4 border-t border-gray-200 dark:border-gray-700">
                 <form onSubmit={handleSendMessage} className="flex gap-2">
-                  <input
-                    type="text"
+                      <MentionInput
                     value={messageInput}
                     onChange={(e) => setMessageInput(e.target.value)}
-                    placeholder="Type a message..."
-                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-800 dark:text-white"
+                        onSend={handleSendMessage}
+                        placeholder="Type your message... (Use @ to mention a lead)"
+                        disabled={!connected || sending}
+                        maxLength={2000}
+                        freelancerId={selectedFreelancerId}
+                        userType="business"
                   />
                   <button
                     type="submit"
-                    disabled={!messageInput.trim()}
-                    className="px-6 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        disabled={!messageInput.trim() || !connected || sending}
+                        className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     <FiSend />
-                    Send
+                        {sending ? 'Sending...' : 'Send'}
                   </button>
                 </form>
               </div>
             </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <FiMessageSquare className="text-6xl text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                  Select a chat to start messaging
-                </h3>
-                <p className="text-gray-600 dark:text-gray-400">
-                  Choose a conversation from the list to view messages
-                </p>
-              </div>
-            </div>
           )}
           </div>
           </div>
@@ -360,4 +385,5 @@ const Chat = () => {
   );
 };
 
-export default Chat;
+export default BusinessChat;
+

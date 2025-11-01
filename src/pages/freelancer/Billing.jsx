@@ -4,6 +4,7 @@ import { FiCreditCard, FiDollarSign, FiCalendar, FiRefreshCw, FiDownload, FiChec
 import { useAuth } from '../../context/AuthContext';
 import { freelancerAPI } from '../../utils/api';
 import toast from 'react-hot-toast';
+import { getErrorMessage, formatCurrency, formatDate } from '../../utils/helpers';
 
 const FreelancerBilling = () => {
   const { currentUser } = useAuth();
@@ -39,24 +40,12 @@ const FreelancerBilling = () => {
         earnings: dashboard.totalEarned || 0
       });
     } catch (error) {
-      console.error('Error fetching billing data:', error);
-      toast.error('Failed to load billing information');
+      toast.error(getErrorMessage(error));
     } finally {
       setLoading(false);
     }
   };
 
-  const formatCurrency = (cents) => {
-    return `$${(cents / 100).toFixed(2)}`;
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
 
   const getStatusIcon = (status) => {
     switch (status) {

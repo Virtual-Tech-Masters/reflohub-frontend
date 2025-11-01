@@ -6,6 +6,8 @@ import { useBusinesses } from '../../hooks/useBusinesses';
 import { commonAPI } from '../../utils/api';
 import PageTitle from '../../components/common/PageTitle';
 import LeadSubmitModal from './LeadSubmitModal';
+import { getErrorMessage, debounce } from '../../utils/helpers';
+import { useAuth } from '../../context/AuthContext';
 
 const Business = () => {
   // Location states
@@ -37,6 +39,7 @@ const Business = () => {
     refreshBusinesses, 
     totalCount 
   } = useBusinesses();
+  const { currentUser } = useAuth();
 
   // Load business locations on component mount
   useEffect(() => {
@@ -54,8 +57,7 @@ const Business = () => {
         .map(name => ({ id: name, name }));
       setCountries(uniqueCountries);
     } catch (error) {
-      console.error('Error fetching business locations:', error);
-      toast.error('Failed to load locations');
+      toast.error(getErrorMessage(error));
       setLocations([]);
       setCountries([]);
     } finally {
@@ -124,11 +126,11 @@ const Business = () => {
     return params;
   };
 
-  // Fetch businesses with current filters
-  const handleSearch = () => {
+  // Fetch businesses with current filters (debounced)
+  const handleSearch = debounce(() => {
     const params = buildQueryParams();
     refreshBusinesses(params);
-  };
+  }, 300);
 
   // Clear all filters
   const clearFilters = () => {
@@ -174,7 +176,7 @@ const Business = () => {
         <div className="text-center">
           <div className="text-red-500 text-6xl mb-4">⚠️</div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Failed to load businesses</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">There was an error loading the businesses.</p>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">{getErrorMessage(error)}</p>
           <button
             onClick={refreshBusinesses}
             className="btn-primary flex items-center gap-2 mx-auto"
@@ -213,7 +215,16 @@ const Business = () => {
               type="text"
               placeholder="Search businesses by name or address..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                handleSearch();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleSearch();
+                }
+              }}
               className="input-field pl-10"
             />
           </div>
@@ -314,7 +325,7 @@ const Business = () => {
           {/* Action Buttons */}
           <div className="flex gap-4">
             <button
-              onClick={handleSearch}
+              onClick={() => handleSearch()}
               className="btn-primary flex items-center gap-2"
               disabled={loading}
             >
@@ -475,7 +486,7 @@ const Business = () => {
         onSubmit={handleLeadSubmitted}
         businesses={businesses}
         selectedBusiness={selectedBusiness}
-        creditBalance={10} // TODO: Get actual credit balance from user data
+        creditBalance={0} // Will be fetched from API when modal opens
       />
     </div>
   );

@@ -75,12 +75,6 @@ const Lead = () => {
     navigate(`/freelancer/lead-details/${lead.id}`);
   };
 
-  // Handle chat action
-  const handleChat = (lead) => {
-    // Navigate to chat page with the specific lead
-    navigate(`/freelancer/chat?leadId=${lead.id}`);
-  };
-
   // Get status color and display text
   const getStatusInfo = (status) => {
     switch (status?.toUpperCase()) {
@@ -354,23 +348,37 @@ const Lead = () => {
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => handleView(lead)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleView(lead);
+                            }}
                             className="text-primary-600 hover:text-primary-700 text-sm font-medium flex items-center gap-1"
                           >
                             <FiEye />
                             View
                           </button>
-                          <button
-                            onClick={() => handleChat(lead)}
-                            className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
-                            title="Chat with business"
-                          >
-                            <FiMessageSquare />
-                            Chat
-                          </button>
+                          {lead.businessId && (
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const leadName = lead.leadName || `Lead #${lead.id}`;
+                                navigate(`/freelancer/chat?businessId=${lead.businessId}&leadId=${lead.id}&leadName=${encodeURIComponent(leadName)}`);
+                              }}
+                              className="p-2 bg-blue-500/20 text-blue-600 hover:bg-blue-500/30 rounded-lg transition-all duration-200"
+                              title="Chat with Business"
+                              aria-label="Open chat with this business"
+                            >
+                              <FiMessageSquare size={16} aria-hidden="true" />
+                            </motion.button>
+                          )}
                           {lead.status === 'APPROVED' && !lead.freelancerAcknowledged && (
                             <button
-                              onClick={() => handleAcknowledgeCommission(lead.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAcknowledgeCommission(lead.id);
+                              }}
                               className="text-green-600 hover:text-green-700 text-sm font-medium"
                             >
                               Acknowledge

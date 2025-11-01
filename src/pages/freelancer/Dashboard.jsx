@@ -22,6 +22,7 @@ import StatsCard from '../../components/common/StatsCard';
 import { useFreelancerData } from '../../hooks/useFreelancerData';
 import CreditPurchaseModal from './TokenPurchaseModal';
 import LeadSubmitModal from './LeadSubmitModal';
+import { getErrorMessage, formatCurrency } from '../../utils/helpers';
 
 // Register ChartJS components
 ChartJS.register(
@@ -78,7 +79,7 @@ const FreelancerDashboard = () => {
   };
 
   // Get latest leads for display
-  const latestLeads = leads.slice(0, 5);
+  const latestLeads = (leads || []).slice(0, 5);
   
   if (isLoading) {
     return (
@@ -97,7 +98,7 @@ const FreelancerDashboard = () => {
         <div className="text-center">
           <div className="text-red-500 text-6xl mb-4">⚠️</div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Failed to load dashboard</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">There was an error loading your dashboard data.</p>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">{getErrorMessage(error)}</p>
           <button
             onClick={refreshData}
             className="btn-primary flex items-center gap-2 mx-auto"
@@ -190,7 +191,7 @@ const FreelancerDashboard = () => {
             </div>
           </div>
           <div className="text-3xl font-bold text-green-600 mb-2">
-            ${(data.earnings / 100).toFixed(2)}
+            {formatCurrency(data.earnings || 0)}
           </div>
           <div className="text-sm text-gray-500 dark:text-gray-400">
             From {data.stats.acceptedLeads} accepted leads
@@ -222,7 +223,7 @@ const FreelancerDashboard = () => {
         open={showLeadModal}
         onClose={() => setShowLeadModal(false)}
         onSubmit={handleSubmitLead}
-        businesses={[]} // TODO: Fetch real businesses
+        businesses={[]}
         creditBalance={data.credits?.creditsRemaining || 0}
       />
       {/* Dashboard Cards */}
@@ -270,7 +271,7 @@ const FreelancerDashboard = () => {
           </Link>
         </div>
         
-        {leads.length === 0 ? (
+        {(leads || []).length === 0 ? (
           <div className="text-center py-12">
             <FiFileText className="mx-auto text-gray-400 text-4xl mb-4" />
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No leads yet</h3>
@@ -297,21 +298,21 @@ const FreelancerDashboard = () => {
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {latestLeads.map((lead) => (
                   <tr key={lead.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4 font-medium">{lead.leadName}</td>
+                    <td className="px-6 py-4 font-medium">{lead.leadName || 'N/A'}</td>
                     <td className="px-6 py-4 text-gray-600 dark:text-gray-400">
-                      Business #{lead.businessId}
+                      {lead.businessName || `Business #${lead.businessId || 'N/A'}`}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full capitalize ${
-                        lead.status === 'pending' ? 'bg-warning-100 text-warning-800 dark:bg-warning-900/20 dark:text-warning-300' :
-                        lead.status === 'accepted' ? 'bg-success-100 text-success-800 dark:bg-success-900/20 dark:text-success-300' :
+                        (lead.status || '').toUpperCase() === 'PENDING' ? 'bg-warning-100 text-warning-800 dark:bg-warning-900/20 dark:text-warning-300' :
+                        (lead.status || '').toUpperCase() === 'APPROVED' || (lead.status || '').toUpperCase() === 'ACCEPTED' ? 'bg-success-100 text-success-800 dark:bg-success-900/20 dark:text-success-300' :
                         'bg-error-100 text-error-800 dark:bg-error-900/20 dark:text-error-300'
                       }`}>
-                        {lead.status}
+                        {lead.status || 'Unknown'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-gray-600 dark:text-gray-400">
-                      {new Date(lead.submittedAt).toLocaleDateString()}
+                      {lead.submittedAt ? new Date(lead.submittedAt).toLocaleDateString() : 'N/A'}
                     </td>
                     <td className="px-6 py-4">
                       <Link 

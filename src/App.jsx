@@ -44,7 +44,7 @@ import Lead from './pages/freelancer/Lead.jsx';
 import FreelancerEarnings from './pages/freelancer/Earnings';
 import LeadDetails from './pages/freelancer/LeadDetails.jsx';
 import FreelancerProfile from './pages/freelancer/Profile';
-import FreelancerChat from './pages/freelancer/Chat.jsx';
+import FreelancerChat from './pages/freelancer/Chat';
 import Businesses from './pages/freelancer/Businesses.jsx';
 import Training from './pages/freelancer/Training.jsx';
 import BusinessDetails from './pages/freelancer/BusinessDetails.jsx';
@@ -55,7 +55,6 @@ import FreelancerBilling from './pages/freelancer/Billing.jsx';
 import EmployeeDashboard from './pages/employee/Dashboard';
 import EmployeeTasks from './pages/employee/Tasks';
 import EmployeeAnnouncements from './pages/employee/Announcements';
-import EmployeeChat from './pages/employee/Chat';
 import EmployeeReports from './pages/employee/Reports';
 
 // Layouts
@@ -268,7 +267,6 @@ function App() {
             <Route index element={<EmployeeDashboard />} />
             <Route path="tasks" element={<EmployeeTasks />} />
             <Route path="announcements" element={<EmployeeAnnouncements />} />
-            <Route path="chat" element={<EmployeeChat />} />
             <Route path="reports" element={<EmployeeReports />} />
           </Route>
 

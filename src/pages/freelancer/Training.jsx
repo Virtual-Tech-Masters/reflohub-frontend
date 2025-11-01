@@ -46,7 +46,7 @@ const Training = () => {
   // Start/resume training
   const startTraining = (id) => {
     // In a real app, this would navigate to the training player
-    console.log(`Starting training ${id}`);
+    // TODO: Implement training player navigation when available
   };
 
   // Calculate stats

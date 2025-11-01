@@ -189,13 +189,6 @@ export const businessAPI = {
   convertLead: (leadId, data) => 
     api.post(`/business/leads/${leadId}/convert`, data),
   
-  // Messages
-  listMessages: (leadId) => 
-    api.get(`/business/leads/${leadId}/messages`),
-  
-  postMessage: (leadId, message) => 
-    api.post(`/business/leads/${leadId}/messages`, { message }),
-  
   // Payouts
   createPayout: (leadId, data) => 
     api.post(`/business/leads/${leadId}/payouts`, data),
@@ -213,6 +206,25 @@ export const businessAPI = {
   
   joinWaitlist: (data) => 
     api.post('/business/waitlist', data),
+  
+  // Chat with freelancers
+  listChatMessages: (freelancerId, params = {}) =>
+    api.get(`/business/chat/freelancers/${freelancerId}/messages`, { params }),
+  
+  // Helper to get WebSocket URL for chat
+  getChatWebSocketUrl: (freelancerId) => {
+    const token = localStorage.getItem('token');
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // VITE_API_URL is like 'http://localhost:5000/api', so we remove 'http://' or 'https://' and '/api' suffix
+    let baseUrl = import.meta.env.VITE_API_URL?.replace(/^https?:\/\//, '') || 'localhost:5000/api';
+    // Remove trailing /api if it exists (since we'll add it back)
+    baseUrl = baseUrl.replace(/\/api$/, '');
+    // If no port specified, assume 5000
+    if (!baseUrl.includes(':') && baseUrl === 'localhost') {
+      baseUrl = 'localhost:5000';
+    }
+    return `${wsProtocol}//${baseUrl}/api/business/chat/freelancers/${freelancerId}/ws${token ? `?token=${token}` : ''}`;
+  },
 };
 
 // Business directory API (for freelancers)
@@ -247,12 +259,6 @@ export const freelancerAPI = {
   getLead: (leadId) => 
     api.get(`/freelancer/leads/${leadId}`),
   
-  message: (leadId, message) => 
-    api.post(`/freelancer/leads/${leadId}/message`, { message }),
-  
-  conversation: (leadId, params = {}) => 
-    api.get(`/freelancer/leads/${leadId}/messages`, { params }),
-  
   acknowledgeCommission: (leadId) => 
     api.patch(`/freelancer/leads/${leadId}/ack-commission`),
   
@@ -276,13 +282,35 @@ export const freelancerAPI = {
   renewSubscription: () => 
     api.post('/freelancer/subscription/renew'),
   
-  // Business Search
-  getBusinesses: (params = {}) => 
-    api.get('/freelancer/businesses', { params }),
+  // Get businesses freelancer has submitted leads to (for chat list)
+  getBusinesses: () =>
+    api.get('/freelancer/businesses'),
   
   // Dashboard
   getDashboard: (params = {}) => 
     api.get('/freelancer/dashboard', { params }),
+  
+  // Chat with businesses
+  getChatBusinesses: () =>
+    api.get('/freelancer/chat/businesses'),
+  
+  listChatMessages: (businessId, params = {}) =>
+    api.get(`/freelancer/chat/businesses/${businessId}/messages`, { params }),
+  
+  // Helper to get WebSocket URL for chat
+  getChatWebSocketUrl: (businessId) => {
+    const token = localStorage.getItem('token');
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // VITE_API_URL is like 'http://localhost:5000/api', so we remove 'http://' or 'https://' and '/api' suffix
+    let baseUrl = import.meta.env.VITE_API_URL?.replace(/^https?:\/\//, '') || 'localhost:5000/api';
+    // Remove trailing /api if it exists (since we'll add it back)
+    baseUrl = baseUrl.replace(/\/api$/, '');
+    // If no port specified, assume 5000
+    if (!baseUrl.includes(':') && baseUrl === 'localhost') {
+      baseUrl = 'localhost:5000';
+    }
+    return `${wsProtocol}//${baseUrl}/api/freelancer/chat/businesses/${businessId}/ws${token ? `?token=${token}` : ''}`;
+  },
 };
 
 // Media API

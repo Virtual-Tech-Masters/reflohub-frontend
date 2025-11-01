@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { commonAPI, freelancerAPI } from '../../utils/api';
 import toast from 'react-hot-toast';
+import { getErrorMessage } from '../../utils/helpers';
 
 const FreelancerSubscription = () => {
   const authContext = useAuth();
@@ -48,7 +49,7 @@ const FreelancerSubscription = () => {
           clearInterval(checkInterval);
         }
       } catch (error) {
-        console.log('Periodic check failed:', error);
+        // Silent failure for periodic checks
       }
     }, 5000); // Check every 5 seconds
 
@@ -64,19 +65,9 @@ const FreelancerSubscription = () => {
         // Fetch subscription plans only
         const plansResponse = await commonAPI.getFreelancerSubscriptionPlans();
         setPlans(plansResponse.data);
-        console.log('Freelancer subscription plans:', plansResponse.data);
-        
-        // Debug: Log the first plan's structure
-        if (plansResponse.data && plansResponse.data.length > 0) {
-          console.log('First plan structure:', plansResponse.data[0]);
-          if (plansResponse.data[0].versions && plansResponse.data[0].versions.length > 0) {
-            console.log('First plan version:', plansResponse.data[0].versions[0]);
-          }
-        }
         
       } catch (error) {
-        console.error('Error fetching subscription plans:', error);
-        toast.error('Failed to load subscription plans');
+        toast.error(getErrorMessage(error));
       } finally {
         setLoading(false);
       }
@@ -90,9 +81,6 @@ const FreelancerSubscription = () => {
     try {
       setCheckingStatus(true);
       const response = await freelancerAPI.getProfile();
-      console.log('User status check:', response.data);
-      console.log('isActive status:', response.data.isActive);
-      console.log('Full user data:', JSON.stringify(response.data, null, 2));
 
       if (response.data.isActive) {
         // Update the cached user data using updateProfile
@@ -104,8 +92,7 @@ const FreelancerSubscription = () => {
         toast.info('Account not yet activated. Please wait a moment and try again.');
       }
     } catch (error) {
-      console.error('Error checking user status:', error);
-      toast.error('Failed to check account status');
+      toast.error(getErrorMessage(error));
     } finally {
       setCheckingStatus(false);
     }
@@ -125,34 +112,20 @@ const FreelancerSubscription = () => {
         planName: selectedPlan.name
       });
       
-      console.log('Subscription response:', response.data);
-      
       // Check for different possible response formats
-      if (response.data) {
-        if (response.data.checkoutUrl) {
-          // Redirect to Stripe checkout
-          window.location.href = response.data.checkoutUrl;
-        } else if (response.data.url) {
-          // Alternative URL field
-          window.location.href = response.data.url;
-        } else if (response.data.sessionUrl) {
-          // Another possible field name
-          window.location.href = response.data.sessionUrl;
-        } else if (response.data.redirectUrl) {
-          // Another possible field name
-          window.location.href = response.data.redirectUrl;
+        if (response.data) {
+          const checkoutUrl = response.data.checkoutUrl || response.data.url || response.data.sessionUrl || response.data.redirectUrl;
+          if (checkoutUrl) {
+            // Redirect to Stripe checkout
+            window.location.href = checkoutUrl;
+          } else {
+            toast.error('Failed to create checkout session - no URL returned');
+          }
         } else {
-          console.error('No checkout URL found in response:', response.data);
-          toast.error('Failed to create checkout session - no URL returned');
+          toast.error('Failed to create checkout session - no response data');
         }
-      } else {
-        console.error('No data in response:', response);
-        toast.error('Failed to create checkout session - no response data');
-      }
     } catch (error) {
-      console.error('Error starting subscription:', error);
-      console.error('Error response:', error.response?.data);
-      toast.error(error.response?.data?.message || 'Failed to start subscription');
+      toast.error(getErrorMessage(error));
     } finally {
       setStartingSubscription(false);
     }

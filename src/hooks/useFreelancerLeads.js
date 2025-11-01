@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { freelancerAPI } from '../utils/api';
 import toast from 'react-hot-toast';
+import { getErrorMessage } from '../utils/helpers';
 
 export const useFreelancerLeads = () => {
   const { currentUser } = useAuth();
@@ -12,9 +13,7 @@ export const useFreelancerLeads = () => {
 
   const fetchLeads = async (params = {}) => {
     try {
-      console.log('Fetching leads with params:', params);
       const response = await freelancerAPI.listLeads(params);
-      console.log('Leads API response:', response);
       const data = response.data;
 
       // If backend returns an array already
@@ -56,14 +55,12 @@ export const useFreelancerLeads = () => {
       // Fallback: return empty array if unexpected shape
       return [];
     } catch (error) {
-      console.error('Failed to fetch leads:', error);
       throw error;
     }
   };
 
   const refreshLeads = async (params = {}) => {
     if (!currentUser || leadsLoaded) {
-      console.log('No current user or leads already loaded, skipping leads fetch');
       setLoading(false);
       return;
     }
@@ -73,14 +70,11 @@ export const useFreelancerLeads = () => {
     try {
       setLoading(true);
       setError(null);
-      console.log('Refreshing leads for user:', currentUser.id);
       const leadsData = await fetchLeads(params);
-      console.log('Leads data received:', leadsData);
       setLeads(Array.isArray(leadsData) ? leadsData : []);
     } catch (error) {
-      console.error('Failed to refresh leads:', error);
       setError(error);
-      toast.error('Failed to load leads');
+      toast.error(getErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -91,7 +85,6 @@ export const useFreelancerLeads = () => {
       const response = await freelancerAPI.getLead(leadId);
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch lead:', error);
       throw error;
     }
   };
@@ -104,9 +97,7 @@ export const useFreelancerLeads = () => {
       await refreshLeads();
       return response.data;
     } catch (error) {
-      console.error('Failed to submit lead:', error);
-      const message = error.response?.data?.message || 'Failed to submit lead';
-      toast.error(message);
+      toast.error(getErrorMessage(error));
       throw error;
     }
   };
@@ -119,32 +110,7 @@ export const useFreelancerLeads = () => {
       await refreshLeads();
       return response.data;
     } catch (error) {
-      console.error('Failed to acknowledge commission:', error);
-      const message = error.response?.data?.message || 'Failed to acknowledge commission';
-      toast.error(message);
-      throw error;
-    }
-  };
-
-  const sendMessage = async (leadId, message) => {
-    try {
-      const response = await freelancerAPI.message(leadId, message);
-      toast.success('Message sent!');
-      return response.data;
-    } catch (error) {
-      console.error('Failed to send message:', error);
-      const message = error.response?.data?.message || 'Failed to send message';
-      toast.error(message);
-      throw error;
-    }
-  };
-
-  const getConversation = async (leadId, params = {}) => {
-    try {
-      const response = await freelancerAPI.conversation(leadId, params);
-      return response.data;
-    } catch (error) {
-      console.error('Failed to fetch conversation:', error);
+      toast.error(getErrorMessage(error));
       throw error;
     }
   };
@@ -164,8 +130,6 @@ export const useFreelancerLeads = () => {
     refreshLeads,
     getLead,
     submitLead,
-    acknowledgeCommission,
-    sendMessage,
-    getConversation
+    acknowledgeCommission
   };
 };

@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FiX, FiCreditCard, FiCheck, FiShoppingCart } from 'react-icons/fi';
 import { freelancerAPI } from '../../utils/api';
 import toast from 'react-hot-toast';
+import { getErrorMessage, formatCurrency } from '../../utils/helpers';
 
 const CreditPurchaseModal = ({ open, onClose, onPurchase }) => {
   const [selectedPack, setSelectedPack] = useState(null);
@@ -19,12 +20,11 @@ const CreditPurchaseModal = ({ open, onClose, onPurchase }) => {
   const fetchCreditPacks = async () => {
     try {
       const response = await freelancerAPI.listCreditPacks();
-      setCreditPacks(response.data);
+      setCreditPacks(response.data || []);
     } catch (error) {
-      console.warn('Credit packs not available:', error);
       // Set empty array so the UI doesn't break
       setCreditPacks([]);
-      toast.error('Credit packs are currently unavailable');
+      toast.error(getErrorMessage(error));
     }
   };
   
@@ -46,8 +46,7 @@ const CreditPurchaseModal = ({ open, onClose, onPurchase }) => {
         toast.error('Failed to create checkout session');
       }
     } catch (error) {
-      console.error('Failed to purchase credits:', error);
-      toast.error(error.response?.data?.message || 'Failed to purchase credits');
+      toast.error(getErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -111,11 +110,14 @@ const CreditPurchaseModal = ({ open, onClose, onPurchase }) => {
                     )}
                   </div>
                   <p className="text-2xl font-bold text-primary-600 dark:text-primary-400">
-                    ${(pack.amountCents / 100).toFixed(2)}
+                    {pack.amountCents ? formatCurrency(pack.amountCents) : 
+                     pack.priceStripeId ? 'Price varies' : '$0.00'}
                   </p>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    ${(pack.amountCents / 100 / pack.credits).toFixed(2)} per credit
-                  </p>
+                  {pack.amountCents && pack.credits && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      {formatCurrency(Math.round(pack.amountCents / pack.credits))} per credit
+                    </p>
+                  )}
                 </div>
               )) : (
                 <div className="col-span-full text-center py-8">
@@ -155,7 +157,7 @@ const CreditPurchaseModal = ({ open, onClose, onPurchase }) => {
                     {selectedPack.credits} Credits
                   </span>
                   <span className="text-xl font-bold text-primary-600 dark:text-primary-400">
-                    ${(selectedPack.amountCents / 100).toFixed(2)}
+                    {selectedPack.amountCents ? formatCurrency(selectedPack.amountCents) : '$0.00'}
                   </span>
                 </div>
               </div>

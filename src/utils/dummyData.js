@@ -314,50 +314,6 @@ export const announcements = [
   },
 ];
 
-// Chat messages (dummy)
-export const chatMessages = [
-  {
-    id: 'c1',
-    senderId: 'u2',
-    receiverId: 'u3',
-    content: 'Hi, I wanted to discuss the website redesign project.',
-    timestamp: '2023-10-15T10:30:00',
-    read: true,
-  },
-  {
-    id: 'c2',
-    senderId: 'u3',
-    receiverId: 'u2',
-    content: 'Sure, I\'m available. What aspects would you like to discuss?',
-    timestamp: '2023-10-15T10:35:00',
-    read: true,
-  },
-  {
-    id: 'c3',
-    senderId: 'u2',
-    receiverId: 'u3',
-    content: 'I have some questions about the timeline and specific design elements.',
-    timestamp: '2023-10-15T10:40:00',
-    read: true,
-  },
-  {
-    id: 'c4',
-    senderId: 'u3',
-    receiverId: 'u2',
-    content: 'I can provide a detailed breakdown of the timeline. For design elements, I\'ll need more specific requirements.',
-    timestamp: '2023-10-15T10:45:00',
-    read: true,
-  },
-  {
-    id: 'c5',
-    senderId: 'u2',
-    receiverId: 'u3',
-    content: 'Great, let\'s schedule a call to discuss in detail.',
-    timestamp: '2023-10-15T10:50:00',
-    read: false,
-  },
-];
-
 // Chart data for dashboards
 export const adminChartData = {
   revenue: {

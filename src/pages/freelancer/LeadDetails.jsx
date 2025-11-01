@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   FiEdit, FiSave, FiFlag, FiX, FiRefreshCw, FiDollarSign, FiCalendar, FiUser, 
-  FiMessageCircle, FiArrowLeft, FiPhone, FiMail, FiMapPin, FiClock, FiCheckCircle,
+  FiArrowLeft, FiPhone, FiMail, FiMapPin, FiClock, FiCheckCircle,
   FiAlertCircle, FiTrendingUp, FiCreditCard, FiFileText, FiMessageSquare
 } from 'react-icons/fi';
 import { Tooltip } from 'react-tooltip';
@@ -10,14 +10,12 @@ import toast from 'react-hot-toast';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useFreelancerLeads } from '../../hooks/useFreelancerLeads';
 import PageTitle from '../../components/common/PageTitle';
+import { getErrorMessage, escapeHtml, formatCurrency, formatDateTime } from '../../utils/helpers';
 
 const LeadDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   
-  console.log('LeadDetails component loaded with ID:', id);
-  
-  // Test return to see if component is reached
   if (!id) {
     return (
       <div className="p-8">
@@ -35,18 +33,13 @@ const LeadDetails = () => {
   const [reportDetails, setReportDetails] = useState({ reason: '', description: '' });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [conversation, setConversation] = useState([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [conversationLoaded, setConversationLoaded] = useState(false);
 
   // Use the custom hook for data fetching
   const { 
     leads,
     loading: leadsLoading,
     getLead, 
-    acknowledgeCommission, 
-    sendMessage, 
-    getConversation 
+    acknowledgeCommission
   } = useFreelancerLeads();
 
   useEffect(() => {
@@ -73,22 +66,6 @@ const LeadDetails = () => {
       // Refresh lead data
       const leadData = await getLead(id);
       setLead(leadData);
-    } catch (error) {
-      // Error is already handled in the hook
-    }
-  };
-
-  // Handle sending message
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim()) return;
-
-    try {
-      await sendMessage(id, newMessage.trim());
-      setNewMessage('');
-      // Refresh conversation
-      const convData = await getConversation(id);
-      setConversation(convData.messages || []);
     } catch (error) {
       // Error is already handled in the hook
     }
@@ -202,26 +179,44 @@ const LeadDetails = () => {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
+      <div className="mb-8">
+        <div className="flex items-center gap-4 mb-4">
           <Link
             to="/freelancer/leads"
             className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
           >
             <FiArrowLeft size={20} />
           </Link>
-          <PageTitle
-            title={`Lead: ${lead.leadName}`}
-            subtitle={`Business #${lead.businessId} • ${lead.status}`}
-          />
         </div>
-        <button
-          onClick={() => window.location.reload()}
-          className="btn-secondary flex items-center gap-2"
-        >
-          <FiRefreshCw />
-          Refresh
-        </button>
+        <PageTitle
+          title={`Lead: ${lead.leadName}`}
+          subtitle={`Business #${lead.businessId} • ${lead.status}`}
+          actions={
+            <div className="flex gap-2">
+              {lead.businessId && (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => {
+                    const leadName = lead.leadName || `Lead #${lead.id}`;
+                    navigate(`/freelancer/chat?businessId=${lead.businessId}&leadId=${lead.id}&leadName=${encodeURIComponent(leadName)}`);
+                  }}
+                  className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <FiMessageSquare />
+                  Chat
+                </motion.button>
+              )}
+              <button
+                onClick={() => window.location.reload()}
+                className="btn-secondary flex items-center gap-2"
+              >
+                <FiRefreshCw />
+                Refresh
+              </button>
+            </div>
+          }
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -259,13 +254,7 @@ const LeadDetails = () => {
                   <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Submitted Date</label>
                   <p className="text-lg font-medium text-gray-900 dark:text-white flex items-center gap-2">
                     <FiCalendar className="text-gray-400" />
-                    {new Date(lead.submittedAt).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
+                    {formatDateTime(lead.submittedAt)}
                   </p>
                 </div>
               </div>
@@ -275,7 +264,9 @@ const LeadDetails = () => {
                   <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Commission</label>
                   <p className="text-2xl font-bold text-green-600 flex items-center gap-2">
                     <FiDollarSign />
-                    {lead.finalCommissionCents ? (lead.finalCommissionCents / 100).toFixed(2) : '0.00'}
+                    {lead.finalCommissionCents ? formatCurrency(lead.finalCommissionCents) : 
+                     lead.finalCommissionPctBps ? `${(lead.finalCommissionPctBps / 100).toFixed(2)}%` : 
+                     '$0.00'}
                   </p>
                 </div>
                 
@@ -363,7 +354,7 @@ const LeadDetails = () => {
                 Lead Details
               </h3>
               <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                <p className="text-gray-900 dark:text-white whitespace-pre-wrap">{lead.details}</p>
+                <p className="text-gray-900 dark:text-white whitespace-pre-wrap">{escapeHtml(lead.details)}</p>
               </div>
             </div>
           )}
@@ -397,7 +388,7 @@ const LeadDetails = () => {
                   <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Proposed Commission</label>
                   <p className="text-lg font-medium text-blue-600">
                     {lead.commissionType === 'FIXED' && lead.proposedCommissionCents ? 
-                      `$${(lead.proposedCommissionCents / 100).toFixed(2)}` :
+                      formatCurrency(lead.proposedCommissionCents) :
                      lead.commissionType === 'PERCENTAGE' && lead.proposedCommissionPctBps ? 
                       `${(lead.proposedCommissionPctBps / 100).toFixed(2)}%` : 
                       'Not Set'}
@@ -409,7 +400,7 @@ const LeadDetails = () => {
                   <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Final Commission</label>
                   <p className="text-lg font-medium text-green-600">
                     {lead.finalCommissionCents ? 
-                      `$${(lead.finalCommissionCents / 100).toFixed(2)}` :
+                      formatCurrency(lead.finalCommissionCents) :
                      lead.finalCommissionPctBps ? 
                       `${(lead.finalCommissionPctBps / 100).toFixed(2)}%` : 
                       'Not Set'}
@@ -441,13 +432,7 @@ const LeadDetails = () => {
                   <div>
                     <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Acknowledged Date</label>
                     <p className="text-lg font-medium text-gray-900 dark:text-white">
-                      {new Date(lead.acknowledgedAt).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
+                      {formatDateTime(lead.acknowledgedAt)}
                     </p>
                   </div>
                 )}
@@ -457,7 +442,7 @@ const LeadDetails = () => {
                 <div className="mt-4">
                   <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Approval Notes</label>
                   <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 mt-2">
-                    <p className="text-gray-900 dark:text-white">{lead.approvalNotes}</p>
+                    <p className="text-gray-900 dark:text-white">{escapeHtml(lead.approvalNotes)}</p>
                   </div>
                 </div>
               )}
@@ -472,7 +457,7 @@ const LeadDetails = () => {
                 Rejection Information
               </h3>
               <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
-                <p className="text-red-800 dark:text-red-200">{lead.rejectionReason}</p>
+                <p className="text-red-800 dark:text-red-200">{escapeHtml(lead.rejectionReason)}</p>
                 {lead.rejectedAt && (
                   <p className="text-sm text-red-600 dark:text-red-400 mt-2">
                     Rejected on: {new Date(lead.rejectedAt).toLocaleDateString()}
@@ -505,10 +490,14 @@ const LeadDetails = () => {
           />
                 <div className="flex gap-2">
                   <button
-                    onClick={() => {
-                      setIsEditingNotes(false);
-                      // TODO: Save notes to backend
-                      toast.success('Notes saved');
+                    onClick={async () => {
+                      try {
+                        // Notes saving would be implemented when backend endpoint is available
+                        setIsEditingNotes(false);
+                        toast.success('Notes saved');
+                      } catch (error) {
+                        toast.error(getErrorMessage(error));
+                      }
                     }}
                     className="btn-primary flex items-center gap-1"
                   >
@@ -529,50 +518,6 @@ const LeadDetails = () => {
           </p>
         )}
       </div>
-
-          {/* Conversation */}
-          <div className="card">
-            <h3 className="text-lg font-semibold mb-4">Conversation</h3>
-            {conversation.length === 0 ? (
-              <p className="text-gray-600 dark:text-gray-400 text-center py-4">No messages yet</p>
-            ) : (
-              <div className="space-y-4 max-h-64 overflow-y-auto">
-                {conversation.map((message, index) => (
-                  <div key={index} className="flex items-start gap-3">
-                    <div className="w-8 h-8 bg-primary-100 dark:bg-primary-900/20 rounded-full flex items-center justify-center">
-                      <FiUser size={16} className="text-primary-600" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3">
-                        <p className="text-sm">{message.message}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          {new Date(message.createdAt).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            
-            <form onSubmit={handleSendMessage} className="mt-4 flex gap-2">
-              <input
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Type your message..."
-                className="flex-1 input-field"
-              />
-              <button
-                type="submit"
-                className="btn-primary flex items-center gap-1"
-                disabled={!newMessage.trim()}
-              >
-                <FiMessageCircle />
-                Send
-              </button>
-            </form>
-          </div>
         </div>
 
         {/* Actions Sidebar */}
@@ -581,14 +526,6 @@ const LeadDetails = () => {
           <div className="card">
             <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
             <div className="space-y-3">
-              <Link
-                to={`/freelancer/chat?leadId=${lead.id}`}
-                className="w-full btn-primary flex items-center justify-center gap-2"
-              >
-                <FiMessageSquare />
-                Chat with Business
-              </Link>
-              
               {lead.status === 'APPROVED' && !lead.freelancerAcknowledged && (
                 <button
                   onClick={handleAcknowledgeCommission}
@@ -628,7 +565,9 @@ const LeadDetails = () => {
               <div className="flex justify-between items-center">
                 <span className="text-gray-600 dark:text-gray-400">Commission</span>
                 <span className="font-bold text-green-600">
-                  ${lead.finalCommissionCents ? (lead.finalCommissionCents / 100).toFixed(2) : '0.00'}
+                  {lead.finalCommissionCents ? formatCurrency(lead.finalCommissionCents) :
+                   lead.finalCommissionPctBps ? `${(lead.finalCommissionPctBps / 100).toFixed(2)}%` :
+                   '$0.00'}
                 </span>
               </div>
               

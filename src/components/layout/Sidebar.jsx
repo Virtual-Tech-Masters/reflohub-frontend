@@ -2,9 +2,9 @@ import { NavLink } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   FiHome, FiUsers, FiFileText, FiSettings, FiActivity, 
-  FiMessageCircle, FiUser, FiDollarSign, FiList, 
+  FiUser, FiDollarSign, FiList, 
   FiBell, FiCheckSquare, FiBarChart, FiX, FiAperture, FiCommand, FiArchive, FiHelpCircle, FiShield,
-  FiMapPin, FiTag, FiCreditCard, FiPackage, FiTrendingUp
+  FiMapPin, FiTag, FiCreditCard, FiPackage, FiTrendingUp, FiMessageSquare
 } from 'react-icons/fi';
 import { useAuth } from '../../context/AuthContext';
 
@@ -57,7 +57,7 @@ const Sidebar = ({ userType, closeSidebar }) => {
         return [
           { to: '/business', icon: <FiHome size={20} />, label: 'Dashboard' },
           { to: '/business/leads', icon: <FiAperture size={20} />, label: 'Leads' },
-          { to: '/business/chat', icon: <FiMessageCircle size={20} />, label: 'Chat' },
+          { to: '/business/chat', icon: <FiMessageSquare size={20} />, label: 'Chat' },
           { to: '/business/profile', icon: <FiUser size={20} />, label: 'Profile' },
           { to: '/business/billing', icon: <FiCreditCard size={20} />, label: 'Billing' },
           { to: '/business/payout', icon: <FiArchive size={20} />, label: 'Payout' },
@@ -71,7 +71,7 @@ const Sidebar = ({ userType, closeSidebar }) => {
           { to: '/freelancer/earnings', icon: <FiDollarSign size={20} />, label: 'Earnings' },
           { to: '/freelancer/billing', icon: <FiCreditCard size={20} />, label: 'Billing & Credits' },
           { to: '/freelancer/training', icon: <FiHelpCircle size={20} />, label: 'Training' },
-          { to: '/freelancer/chat', icon: <FiMessageCircle size={20} />, label: 'Chat' },
+          { to: '/freelancer/chat', icon: <FiMessageSquare size={20} />, label: 'Chat' },
           { to: '/freelancer/profile', icon: <FiUser size={20} />, label: 'Profile' },
         ];
       default:

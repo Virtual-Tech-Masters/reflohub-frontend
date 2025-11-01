@@ -3,28 +3,34 @@ import { useNavigate } from 'react-router-dom';
 import { FiDollarSign, FiRefreshCw, FiClock, FiCheckCircle } from 'react-icons/fi';
 import { useFreelancerLeads } from '../../hooks/useFreelancerLeads';
 import PageTitle from '../../components/common/PageTitle';
+import { formatCurrency } from '../../utils/helpers';
 
 const PendingCommissions = () => {
   const navigate = useNavigate();
   const [pendingCommissions, setPendingCommissions] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  const { leads, refreshLeads } = useFreelancerLeads();
+  const { leads, refreshLeads, acknowledgeCommission } = useFreelancerLeads();
 
   useEffect(() => {
     // Filter leads that have pending commissions
-    const pending = leads.filter(lead => 
-      lead.status === 'accepted' && 
-      lead.commissionEarned > 0 && 
-      !lead.commissionAcknowledged
-    );
+    const pending = leads.filter(lead => {
+      const statusUpper = (lead.status || '').toUpperCase();
+      return (statusUpper === 'ACCEPTED' || statusUpper === 'APPROVED') && 
+             (lead.finalCommissionCents || lead.commissionEarned || 0) > 0 && 
+             !lead.freelancerAcknowledged;
+    });
     setPendingCommissions(pending);
     setLoading(false);
   }, [leads]);
 
   const handleAcknowledgeCommission = async (leadId) => {
-    // This would be handled by the useFreelancerLeads hook
-    console.log('Acknowledging commission for lead:', leadId);
+    try {
+      await acknowledgeCommission(leadId);
+      // Leads will refresh automatically from hook
+    } catch (error) {
+      // Error is handled in hook
+    }
   };
 
   if (loading) {
@@ -86,9 +92,13 @@ const PendingCommissions = () => {
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {pendingCommissions.map((lead) => (
                   <tr key={lead.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{lead.leadName}</td>
-                    <td className="px-6 py-4 text-gray-600 dark:text-gray-400">Business #{lead.businessId}</td>
-                    <td className="px-6 py-4 text-green-600 font-semibold">${lead.commissionEarned}</td>
+                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{lead.leadName || 'N/A'}</td>
+                    <td className="px-6 py-4 text-gray-600 dark:text-gray-400">{lead.businessName || `Business #${lead.businessId || 'N/A'}`}</td>
+                    <td className="px-6 py-4 text-green-600 font-semibold">
+                      {lead.finalCommissionCents ? formatCurrency(lead.finalCommissionCents) :
+                       lead.commissionEarned ? formatCurrency(typeof lead.commissionEarned === 'number' ? lead.commissionEarned * 100 : lead.commissionEarned) :
+                       '$0.00'}
+                    </td>
                     <td className="px-6 py-4">
                       <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-warning-100 text-warning-800 dark:bg-warning-900/20 dark:text-warning-300">
                         Pending
@@ -104,12 +114,18 @@ const PendingCommissions = () => {
                       <div className="flex items-center gap-2">
                         <button 
                           className="text-primary-600 hover:text-primary-700 text-sm font-medium"
-                          onClick={() => navigate(`/freelancer/lead-details/${lead.id}`)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/freelancer/lead-details/${lead.id}`);
+                          }}
                         >
                           View Details
                         </button>
                         <button
-                          onClick={() => handleAcknowledgeCommission(lead.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAcknowledgeCommission(lead.id);
+                          }}
                           className="text-green-600 hover:text-green-700 text-sm font-medium"
                         >
                           Acknowledge

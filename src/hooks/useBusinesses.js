@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { freelancerAPI } from '../utils/api';
 import toast from 'react-hot-toast';
+import { getErrorMessage } from '../utils/helpers';
 
 export const useBusinesses = () => {
   const { currentUser } = useAuth();
@@ -13,21 +14,14 @@ export const useBusinesses = () => {
 
   const fetchBusinesses = async (params = {}) => {
     try {
-      // Default parameters - fetch specific business
+      // Default parameters
       const requestParams = {
         limit: 50,
         page: 1,
-        country: 'India', // Specific country - required by backend
-        categoryIds: '5', // Specific category - required by backend
         ...params
       };
       
-      console.log('Fetching businesses with params:', requestParams);
       const response = await freelancerAPI.getBusinesses(requestParams);
-      console.log('Full API response:', response.data);
-      console.log('Businesses array:', response.data.results);
-      console.log('Businesses count:', response.data.results?.length);
-      console.log('Total count from API:', response.data.count);
       
       return {
         results: response.data.results || [],
@@ -36,7 +30,6 @@ export const useBusinesses = () => {
         limit: response.data.limit || 50
       };
     } catch (error) {
-      console.error('Failed to fetch businesses:', error);
       // If API fails, return empty array instead of throwing
       return {
         results: [],
@@ -56,20 +49,14 @@ export const useBusinesses = () => {
     try {
       setLoading(true);
       setError(null);
-      console.log('Refreshing businesses with params:', params);
       const data = await fetchBusinesses(params);
-      console.log('Businesses data received:', data);
-      console.log('Number of businesses:', data.results.length);
-      console.log('Business names:', data.results.map(b => b.name));
       
       setBusinesses(data.results);
       setTotalCount(data.count);
       businessesLoadedRef.current = true;
     } catch (error) {
-      console.error('Failed to refresh businesses:', error);
       setError(error);
-      // Don't show error toast for now, just log it
-      console.log('Business API not available - showing empty state');
+      toast.error(getErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -84,7 +71,6 @@ export const useBusinesses = () => {
       // If not found, return fallback
       throw new Error('Business not found in loaded list');
     } catch (error) {
-      console.error('Failed to fetch business:', error);
       // Return a fallback business object if API fails
       return {
         id: businessId,
@@ -107,13 +93,20 @@ export const useBusinesses = () => {
   useEffect(() => {
     if (currentUser?.id) {
       businessesLoadedRef.current = false;
-      // Load specific business by default
-      refreshBusinesses({ 
-        country: 'India',
-        categoryIds: '5' // Specific category
-      });
+      // Load businesses on mount
+      refreshBusinesses({});
     }
   }, [currentUser?.id]);
+
+  const getBusinessLeads = async (businessId) => {
+    try {
+      // This would typically call an API endpoint to get leads for a specific business
+      // For now, return empty array as this feature may not be implemented yet
+      return [];
+    } catch (error) {
+      return [];
+    }
+  };
 
   return {
     businesses,
@@ -121,6 +114,7 @@ export const useBusinesses = () => {
     error,
     totalCount,
     refreshBusinesses,
-    getBusiness
+    getBusiness,
+    getBusinessLeads
   };
 };

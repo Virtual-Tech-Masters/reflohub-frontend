@@ -2,24 +2,33 @@ import React, { useState, useEffect } from 'react';
 import { FiDollarSign, FiRefreshCw, FiTrendingUp, FiCalendar, FiCheckCircle } from 'react-icons/fi';
 import { useFreelancerLeads } from '../../hooks/useFreelancerLeads';
 import PageTitle from '../../components/common/PageTitle';
+import { formatCurrency } from '../../utils/helpers';
+import { useNavigate } from 'react-router-dom';
 
 const Earnings = () => {
   const [paidEarnings, setPaidEarnings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [totalEarnings, setTotalEarnings] = useState(0);
+  const navigate = useNavigate();
   
   const { leads, refreshLeads } = useFreelancerLeads();
 
   useEffect(() => {
     // Filter leads that have been paid (converted status)
-    const paid = leads.filter(lead => 
-      lead.status === 'converted' && 
-      lead.commissionEarned > 0
-    );
+    const paid = leads.filter(lead => {
+      const statusUpper = (lead.status || '').toUpperCase();
+      return statusUpper === 'CONVERTED' && 
+             (lead.finalCommissionCents || (typeof lead.commissionEarned === 'number' ? lead.commissionEarned * 100 : lead.commissionEarned) || 0) > 0;
+    });
     setPaidEarnings(paid);
     
-    // Calculate total earnings
-    const total = paid.reduce((sum, lead) => sum + lead.commissionEarned, 0);
+    // Calculate total earnings (convert to cents if needed)
+    const total = paid.reduce((sum, lead) => {
+      const commission = lead.finalCommissionCents || 
+                        (typeof lead.commissionEarned === 'number' && lead.commissionEarned < 1000 ? lead.commissionEarned * 100 : lead.commissionEarned) || 
+                        0;
+      return sum + commission;
+    }, 0);
     setTotalEarnings(total);
     
     setLoading(false);
@@ -61,7 +70,7 @@ const Earnings = () => {
             </div>
             <div>
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Earnings</p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">${totalEarnings.toFixed(2)}</p>
+              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{formatCurrency(totalEarnings)}</p>
             </div>
           </div>
         </div>
@@ -101,7 +110,7 @@ const Earnings = () => {
             You haven't received any commission payments yet. Keep submitting quality leads!
           </p>
           <button
-            onClick={() => window.location.href = '/freelancer/businesses'}
+            onClick={() => navigate('/freelancer/businesses')}
             className="btn-primary flex items-center gap-2 mx-auto"
           >
             <FiTrendingUp />
@@ -124,9 +133,13 @@ const Earnings = () => {
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {paidEarnings.map((lead) => (
                   <tr key={lead.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{lead.leadName}</td>
-                    <td className="px-6 py-4 text-gray-600 dark:text-gray-400">Business #{lead.businessId}</td>
-                    <td className="px-6 py-4 text-green-600 font-semibold">${lead.commissionEarned}</td>
+                    <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">{lead.leadName || 'N/A'}</td>
+                    <td className="px-6 py-4 text-gray-600 dark:text-gray-400">{lead.businessName || `Business #${lead.businessId || 'N/A'}`}</td>
+                    <td className="px-6 py-4 text-green-600 font-semibold">
+                      {lead.finalCommissionCents ? formatCurrency(lead.finalCommissionCents) :
+                       lead.commissionEarned ? formatCurrency(typeof lead.commissionEarned === 'number' && lead.commissionEarned < 1000 ? lead.commissionEarned * 100 : lead.commissionEarned) :
+                       '$0.00'}
+                    </td>
                     <td className="px-6 py-4 text-gray-600 dark:text-gray-400">
                       <div className="flex items-center gap-1">
                         <FiCalendar className="text-gray-400" />

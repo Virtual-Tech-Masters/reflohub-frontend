@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   FiArrowLeft, FiUser, FiMail, FiPhone, FiCalendar, FiDollarSign, 
-  FiCheckCircle, FiX, FiMessageSquare, FiClock, FiTrendingUp,
-  FiEdit, FiSave, FiAlertCircle, FiExternalLink, FiRefreshCw
+  FiCheckCircle, FiX, FiClock, FiTrendingUp,
+  FiEdit, FiSave, FiAlertCircle, FiExternalLink, FiRefreshCw, FiMessageSquare
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -70,14 +70,21 @@ const LeadDetails = () => {
         return;
       }
       
-      // Extract freelancer data if available in lead data
+      // Debug: Log lead data structure
+      console.log('Lead data structure:', leadData);
+      console.log('Freelancer data:', leadData?.freelancer);
+      console.log('FreelancerLinks:', leadData?.freelancerLinks);
+      
+      // Extract freelancer data if available in lead data (handle both structures)
       const freelancerData = leadData.freelancer || leadData.freelancerLinks?.[0]?.freelancer || null;
       
       setLead({
         ...leadData,
         freelancer: freelancerData,
         messages: leadData.messages || [],
-        commission: leadData.commission || []
+        commission: leadData.commission || [],
+        // Keep freelancerLinks for backward compatibility
+        freelancerLinks: leadData.freelancerLinks || []
       });
     } catch (error) {
       const errorMessage = getErrorMessage(error);
@@ -308,6 +315,25 @@ const LeadDetails = () => {
             subtitle="View and manage lead information"
             actions={
               <div className="flex gap-2">
+                {/* Chat button - show if freelancer exists */}
+                {(lead.freelancer || lead.freelancerLinks?.[0]?.freelancer) && (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => {
+                      const freelancerId = lead.freelancer?.id || lead.freelancerLinks?.[0]?.freelancer?.id;
+                      if (freelancerId) {
+                        const leadName = lead.leadName || `Lead #${lead.id}`;
+                        navigate(`/business/chat?freelancerId=${freelancerId}&leadId=${lead.id}&leadName=${encodeURIComponent(leadName)}`);
+                      }
+                    }}
+                    className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    <FiMessageSquare />
+                    Chat
+                  </motion.button>
+                )}
+                
                 {lead.status === 'SUBMITTED' && (
                   <>
                     <motion.button
@@ -392,27 +418,32 @@ const LeadDetails = () => {
               </div>
 
               {/* Freelancer Information */}
-              {lead.freelancer && (
+              {(lead.freelancer || lead.freelancerLinks?.[0]?.freelancer) && (
                 <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Freelancer Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Name</label>
-                      <p className="text-gray-900 dark:text-white">{lead.freelancer.fullName}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Email</label>
-                      <p className="text-gray-900 dark:text-white">{lead.freelancer.email}</p>
-                </div>
-                <div>
-                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Phone</label>
-                      <p className="text-gray-900 dark:text-white">{lead.freelancer.phone || 'N/A'}</p>
-                </div>
-                <div>
-                      <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Location</label>
-                      <p className="text-gray-900 dark:text-white">{lead.freelancer.location || 'N/A'}</p>
-                    </div>
-                  </div>
+                  {(() => {
+                    const freelancer = lead.freelancer || lead.freelancerLinks?.[0]?.freelancer;
+                    if (!freelancer) return null;
+                    
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Name</label>
+                          <p className="text-gray-900 dark:text-white">{freelancer.fullName || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Email</label>
+                          <p className="text-gray-900 dark:text-white">{freelancer.email || 'N/A'}</p>
+                        </div>
+                        {freelancer.phone && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Phone</label>
+                            <p className="text-gray-900 dark:text-white">{freelancer.phone}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 

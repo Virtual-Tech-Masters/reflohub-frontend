@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
-  FiEye, FiCheck, FiX, FiMessageSquare, FiDollarSign, FiClock, 
-  FiFilter, FiSearch, FiRefreshCw, FiTrendingUp, FiUsers 
+  FiEye, FiCheck, FiX, FiDollarSign, FiClock, 
+  FiFilter, FiSearch, FiRefreshCw, FiTrendingUp, FiUsers, FiMessageSquare
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -62,6 +62,15 @@ const LeadManagement = () => {
       
       // The API returns leads directly as an array, not nested under 'leads' property
       const leadsArray = Array.isArray(response.data) ? response.data : (response.data?.leads || []);
+      
+      // Debug: Log first lead to see structure
+      if (leadsArray.length > 0) {
+        console.log('First lead structure:', leadsArray[0]);
+        console.log('Freelancer data:', leadsArray[0]?.freelancer);
+        console.log('FreelancerLinks:', leadsArray[0]?.freelancerLinks);
+        console.log('All keys:', Object.keys(leadsArray[0]));
+      }
+      
       setLeads(leadsArray);
       
       // Update total count (use total from response if available, otherwise use array length)
@@ -172,10 +181,6 @@ const LeadManagement = () => {
     }
   };
 
-  const handleChat = (lead) => {
-    // Navigate to chat page with the specific lead
-    navigate(`/business/chat?leadId=${lead.id}`);
-  };
 
   const filteredLeads = leads.filter(lead => {
     const matchesStatus = !filters.status || lead.status === filters.status;
@@ -304,12 +309,29 @@ const LeadManagement = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900 dark:text-white">
-                      {lead.freelancer?.fullName || 'Freelancer Name'}
-                    </div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                      {lead.freelancer?.email || 'freelancer@example.com'}
-                    </div>
+                    {lead.freelancer ? (
+                      <>
+                        <div className="text-sm text-gray-900 dark:text-white">
+                          {lead.freelancer.fullName || 'N/A'}
+                        </div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          {lead.freelancer.email || 'N/A'}
+                        </div>
+                      </>
+                    ) : lead.freelancerLinks?.[0]?.freelancer ? (
+                      <>
+                        <div className="text-sm text-gray-900 dark:text-white">
+                          {lead.freelancerLinks[0].freelancer.fullName || 'N/A'}
+                        </div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                          {lead.freelancerLinks[0].freelancer.email || 'N/A'}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        No freelancer info
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-900 dark:text-white">
@@ -347,6 +369,27 @@ const LeadManagement = () => {
                       >
                         <FiEye size={16} />
                       </button>
+                      
+                      {/* Chat button - show if freelancer exists */}
+                      {(lead.freelancer || lead.freelancerLinks?.[0]?.freelancer) && (
+                        <motion.button
+                          whileHover={{ scale: 1.1 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const freelancerId = lead.freelancer?.id || lead.freelancerLinks?.[0]?.freelancer?.id;
+                            if (freelancerId) {
+                              const leadName = lead.leadName || `Lead #${lead.id}`;
+                              navigate(`/business/chat?freelancerId=${freelancerId}&leadId=${lead.id}&leadName=${encodeURIComponent(leadName)}`);
+                            }
+                          }}
+                          className="p-2 bg-blue-500/20 text-blue-600 hover:bg-blue-500/30 rounded-lg transition-all duration-200"
+                          title="Chat with Freelancer"
+                          aria-label="Open chat with this freelancer"
+                        >
+                          <FiMessageSquare size={16} aria-hidden="true" />
+                        </motion.button>
+                      )}
                       
                       {lead.status === 'SUBMITTED' && (
                         <>
@@ -402,20 +445,6 @@ const LeadManagement = () => {
                           <FiDollarSign size={16} />
                         </motion.button>
                       )}
-                      
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleChat(lead);
-                        }}
-                        className="p-2 bg-purple-500/20 text-purple-600 hover:bg-purple-500/30 rounded-lg transition-all duration-200"
-                        title="Chat with freelancer"
-                        aria-label="Open chat with freelancer"
-                      >
-                        <FiMessageSquare size={16} aria-hidden="true" />
-                      </motion.button>
                     </div>
                   </td>
                 </tr>
@@ -521,15 +550,29 @@ const LeadManagement = () => {
               
               <div className="space-y-4">
                 {/* Freelancer Information */}
-                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-                  <h4 className="text-sm font-medium text-blue-900 dark:text-blue-300 mb-2">Freelancer</h4>
-                  <p className="text-sm text-blue-800 dark:text-blue-200">
-                    {selectedLead.freelancer?.fullName || 'Freelancer Name'}
-                  </p>
-                  <p className="text-xs text-blue-600 dark:text-blue-400">
-                    {selectedLead.freelancer?.email || 'freelancer@example.com'}
-                  </p>
-                </div>
+                {(selectedLead.freelancer || selectedLead.freelancerLinks?.[0]?.freelancer) && (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                    <h4 className="text-sm font-medium text-blue-900 dark:text-blue-300 mb-2">Freelancer</h4>
+                    {(() => {
+                      const freelancer = selectedLead.freelancer || selectedLead.freelancerLinks?.[0]?.freelancer;
+                      return (
+                        <>
+                          <p className="text-sm text-blue-800 dark:text-blue-200">
+                            {freelancer?.fullName || 'N/A'}
+                          </p>
+                          <p className="text-xs text-blue-600 dark:text-blue-400">
+                            {freelancer?.email || 'N/A'}
+                          </p>
+                          {freelancer?.phone && (
+                            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                              {freelancer.phone}
+                            </p>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
 
                 {/* Lead Information */}
                 <div>

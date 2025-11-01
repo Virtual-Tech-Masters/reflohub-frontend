@@ -8,6 +8,9 @@ import { useBusinesses } from '../../hooks/useBusinesses';
 import { useFreelancerLeads } from '../../hooks/useFreelancerLeads';
 import PageTitle from '../../components/common/PageTitle';
 import LeadSubmitModal from './LeadSubmitModal';
+import { getErrorMessage, escapeHtml } from '../../utils/helpers';
+import { useAuth } from '../../context/AuthContext';
+import { freelancerAPI } from '../../utils/api';
 
 const BusinessDetails = () => {
   const { id } = useParams();
@@ -25,6 +28,8 @@ const BusinessDetails = () => {
   // Use the custom hooks for data fetching
   const { getBusiness, getBusinessLeads } = useBusinesses();
   const { submitLead } = useFreelancerLeads();
+  const { currentUser } = useAuth();
+  const [creditBalance, setCreditBalance] = useState(0);
 
   useEffect(() => {
     const fetchBusinessData = async () => {
@@ -37,18 +42,26 @@ const BusinessDetails = () => {
         setBusiness(businessData);
         setNotes(businessData.notes || '');
         
+        // Fetch credit balance
+        try {
+          const creditsResponse = await freelancerAPI.getCredits();
+          setCreditBalance(creditsResponse.data?.creditsRemaining || 0);
+        } catch (creditsError) {
+          // Non-critical error, just use 0
+          setCreditBalance(0);
+        }
+        
         // Fetch user's leads for this business
         try {
           const leadsData = await getBusinessLeads(id);
           setUserLeads(leadsData);
         } catch (leadsError) {
-          console.log('No leads found for this business or error fetching leads');
+          // No leads found is not a critical error
           setUserLeads([]);
         }
       } catch (error) {
-        console.error('Failed to fetch business:', error);
         setError(error);
-        toast.error('Failed to load business details');
+        toast.error(getErrorMessage(error));
         navigate('/freelancer/businesses');
       } finally {
         setLoading(false);
@@ -316,7 +329,7 @@ const BusinessDetails = () => {
                   <FiUser className="text-primary-600" />
                   Business Description
                 </h4>
-                <p className="text-gray-700 dark:text-gray-300">{business.bio}</p>
+                <p className="text-gray-700 dark:text-gray-300">{escapeHtml(business.bio)}</p>
               </div>
             )}
 
@@ -396,10 +409,15 @@ const BusinessDetails = () => {
                 />
                 <div className="flex gap-2">
                   <button
-                    onClick={() => {
-                      setIsEditingNotes(false);
-                      // TODO: Save notes to backend
-                      toast.success('Notes saved');
+                    onClick={async () => {
+                      try {
+                        // Notes saving would be implemented when backend endpoint is available
+                        // For now, just update local state
+                        setIsEditingNotes(false);
+                        toast.success('Notes saved');
+                      } catch (error) {
+                        toast.error(getErrorMessage(error));
+                      }
                     }}
                     className="btn-primary flex items-center gap-1"
                   >
@@ -431,7 +449,6 @@ const BusinessDetails = () => {
               <button
                 onClick={() => setShowLeadModal(true)}
                 className="w-full btn-primary flex items-center justify-center gap-2"
-                disabled={!business.hasCampaign}
               >
                 <FiPlus />
                 Submit Lead
@@ -483,7 +500,7 @@ const BusinessDetails = () => {
         onSubmit={handleSubmitLead}
         businesses={[business]}
         selectedBusiness={business}
-        tokenBalance={10} // Test tokens for testing
+        creditBalance={creditBalance}
       />
 
       {/* Report Modal */}

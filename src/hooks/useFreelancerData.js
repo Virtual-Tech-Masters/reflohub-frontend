@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { freelancerAPI } from '../utils/api';
 import toast from 'react-hot-toast';
+import { getErrorMessage } from '../utils/helpers';
 
 export const useFreelancerData = () => {
   const { currentUser } = useAuth();
@@ -29,7 +30,6 @@ export const useFreelancerData = () => {
       const response = await freelancerAPI.getProfile();
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch profile:', error);
       throw error;
     }
   };
@@ -39,7 +39,6 @@ export const useFreelancerData = () => {
       const response = await freelancerAPI.listLeads();
       return response.data.leads || [];
     } catch (error) {
-      console.error('Failed to fetch leads:', error);
       throw error;
     }
   };
@@ -49,7 +48,6 @@ export const useFreelancerData = () => {
       const response = await freelancerAPI.getCredits();
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch credits:', error);
       return { creditsRemaining: 0, creditsTotal: 0, creditsUsed: 0 };
     }
   };
@@ -59,7 +57,6 @@ export const useFreelancerData = () => {
       const response = await freelancerAPI.getDashboard();
       return response.data;
     } catch (error) {
-      console.error('Failed to fetch dashboard:', error);
       return null;
     }
   };
@@ -69,15 +66,30 @@ export const useFreelancerData = () => {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     
     const totalLeads = leads.length;
-    const acceptedLeads = leads.filter(lead => lead.status === 'accepted').length;
-    const rejectedLeads = leads.filter(lead => lead.status === 'rejected').length;
-    const pendingLeads = leads.filter(lead => lead.status === 'pending').length;
+    // Normalize status comparison
+    const acceptedLeads = leads.filter(lead => {
+      const statusUpper = (lead.status || '').toUpperCase();
+      return statusUpper === 'ACCEPTED' || statusUpper === 'APPROVED';
+    }).length;
+    const rejectedLeads = leads.filter(lead => {
+      const statusUpper = (lead.status || '').toUpperCase();
+      return statusUpper === 'REJECTED';
+    }).length;
+    const pendingLeads = leads.filter(lead => {
+      const statusUpper = (lead.status || '').toUpperCase();
+      return statusUpper === 'PENDING' || statusUpper === 'SUBMITTED';
+    }).length;
     const leadsThisMonth = leads.filter(lead => 
-      new Date(lead.submittedAt) >= startOfMonth
+      lead.submittedAt && new Date(lead.submittedAt) >= startOfMonth
     ).length;
     
-    // Calculate money earned (assuming $100 per accepted lead for now)
-    const moneyEarned = acceptedLeads * 100;
+    // Calculate money earned from actual commission data (in cents)
+    const moneyEarned = leads.reduce((sum, lead) => {
+      const commission = lead.finalCommissionCents || 
+                       (typeof lead.commissionEarned === 'number' && lead.commissionEarned < 1000 ? lead.commissionEarned * 100 : lead.commissionEarned) || 
+                       0;
+      return sum + commission;
+    }, 0);
 
     return {
       totalLeads,
@@ -85,7 +97,7 @@ export const useFreelancerData = () => {
       rejectedLeads,
       pendingLeads,
       leadsThisMonth,
-      moneyEarned
+      moneyEarned: Math.round(moneyEarned / 100) // Convert to dollars for display
     };
   };
 
@@ -120,9 +132,8 @@ export const useFreelancerData = () => {
       setDataLoaded(true);
 
     } catch (error) {
-      console.error('Failed to fetch freelancer data:', error);
       setError(error);
-      toast.error('Failed to load dashboard data');
+      toast.error(getErrorMessage(error));
     } finally {
       setLoading(false);
     }
@@ -136,9 +147,7 @@ export const useFreelancerData = () => {
       await refreshData();
       return response.data;
     } catch (error) {
-      console.error('Failed to submit lead:', error);
-      const message = error.response?.data?.message || 'Failed to submit lead';
-      toast.error(message);
+      toast.error(getErrorMessage(error));
       throw error;
     }
   };
@@ -151,9 +160,7 @@ export const useFreelancerData = () => {
       await refreshData();
       return response.data;
     } catch (error) {
-      console.error('Failed to purchase credits:', error);
-      const message = error.response?.data?.message || 'Failed to purchase credits';
-      toast.error(message);
+      toast.error(getErrorMessage(error));
       throw error;
     }
   };
@@ -166,9 +173,7 @@ export const useFreelancerData = () => {
       await refreshData();
       return response.data;
     } catch (error) {
-      console.error('Failed to acknowledge commission:', error);
-      const message = error.response?.data?.message || 'Failed to acknowledge commission';
-      toast.error(message);
+      toast.error(getErrorMessage(error));
       throw error;
     }
   };
